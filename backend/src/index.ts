@@ -1,18 +1,19 @@
 import express from "express";
 import dotenv from "dotenv";
-import { oAuthCallbackGithub, oAuthWithGithub } from "./authentication";
+import { oAuthCallbackGithub, initOAuthWithGithub } from "./authentication";
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { sendMessageToRoom } from "./websocket";
+
 dotenv.config();
 
 const app = express();
 const port = 3000;
 const server = createServer(app);
-
 const webSocketServer = new WebSocketServer({ server });
 
 webSocketServer.on("connection", (webSocket, req) => {
+    // TODO: need to authenticate each user....
     const roomId = req.url;
 
     if (roomId == null) {
@@ -39,7 +40,7 @@ app.get("/", (_, res) => {
 });
 
 app.get("/login", (_, res) => {
-    oAuthWithGithub(res);
+    initOAuthWithGithub(res);
 });
 
 app.get("/callback", (req, res) => {
