@@ -1,9 +1,11 @@
 import express, { Request } from "express";
 import session from "express-session";
 import dotenv from "dotenv";
-import { oAuthCallbackGithub, initOAuthWithGithub, isAuth } from "./authentication";
+import { createClient } from "redis";
+import connectRedis from 'connect-redis';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import { oAuthCallbackGithub, initOAuthWithGithub, isAuth } from "./authentication";
 import { sendMessageToRoom } from "./websocket";
 import { COOKIE_NAME, IS_PRODUCTION } from "./constants";
 
@@ -13,6 +15,9 @@ const app = express();
 const port = 3000;
 const server = createServer(app);
 const webSocketServer = new WebSocketServer({ noServer: true });
+const RedisStore = connectRedis(session);
+const redisClient = createClient({ legacyMode: true });
+redisClient.connect().catch(console.error);
 
 // Use session middleware to save session cookies for authentication 
 const sessionParser = session({
@@ -26,12 +31,16 @@ const sessionParser = session({
         sameSite: 'lax',
         secure: IS_PRODUCTION, // cookie only works in https
     },
+    store: new RedisStore({
+        client: redisClient,
+        disableTouch: true,
+    }),
 });
 
 app.use(sessionParser);
 
 server.on("upgrade", async function upgrade(request, socket, head) {
-    // @ts-ignore, TODO: types don't match but this works, find a solution.
+    // @ts-ignore, TODO: Types don't match but this works, find a solution.
     sessionParser(request, {}, () => {
         const req = request as Request;
 
