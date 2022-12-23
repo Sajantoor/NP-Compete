@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 
 /**
  * Redirects to Github OAuth, inits OAuth process with a code.
@@ -54,5 +54,16 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
 
     const bearerToken: string = tokenRequest.data["access_token"];
     const userInfo = await getUserInfoFromGitHub(bearerToken);
+    // set session
+    req.session.userId = userInfo.data["id"];
     res.send(userInfo.data);
+}
+
+
+export function isAuth(req: Request, res: Response, next: NextFunction): void {
+    if (!req.session.userId) {
+        res.status(401).send("Unauthorized");
+    }
+
+    next();
 }
