@@ -1,45 +1,23 @@
 import express, { Request } from "express";
-import session from "express-session";
-import dotenv from "dotenv";
-import { createClient } from "redis";
-import connectRedis from 'connect-redis';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
-import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth } from "./authentication";
-import { sendMessageToRoom } from "./websocket";
-import { COOKIE_NAME, IS_PRODUCTION } from "./constants";
-
+import dotenv from "dotenv";
 dotenv.config();
+
+import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth } from "./components/authentication";
+import { sendMessageToRoom } from "./components/websocket";
+import sessionParser from "./components/sessionParser";
 
 const app = express();
 const port = 3000;
 const server = createServer(app);
 const webSocketServer = new WebSocketServer({ noServer: true });
-const RedisStore = connectRedis(session);
-export const redisClient = createClient({ legacyMode: true });
-redisClient.connect().catch(console.error);
-
-// Use session middleware to save session cookies for authentication 
-const sessionParser = session({
-    name: COOKIE_NAME,
-    secret: process.env.SESSION_SECRET!,
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: IS_PRODUCTION, // cookie only works in https
-    },
-    store: new RedisStore({
-        client: redisClient,
-        disableTouch: true,
-    }),
-});
 
 app.use(sessionParser);
 
-server.on("upgrade", async function upgrade(request, socket, head) {
+// I'm not sure how this works but this used since verifyClient is pretty much 
+// deprecated: https://github.com/websockets/ws/issues/377#issuecomment-462152231
+server.on("upgrade", async function upgrade(request, socket, head: Buffer) {
     // @ts-ignore, TODO: Types don't match but this works, find a solution.
     sessionParser(request, {}, () => {
         const req = request as Request;
