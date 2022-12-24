@@ -1,14 +1,18 @@
 import axios from "axios";
+import crypto from "crypto";
 import { NextFunction, Request, Response } from "express";
+import { redisClient } from ".";
+
+const STATE_CACHE_KEY = "state_cache";
 
 /**
  * Redirects to Github OAuth, inits OAuth process with a code.
  */
-export function initOAuthWithGithub(res: Response) {
-    // TODO: This is not safe as Math.random is seeded and this poses a security risk
-    // State needs to *really* be a random string
-    const STATE = Math.random().toString(36).substring(2, 15);
-    const GITHUB_OAUTH = `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}&state=${STATE}`;
+export async function initOAuthWithGithub(res: Response) {
+    const state = crypto.randomUUID();
+    await redisClient.sAdd(STATE_CACHE_KEY, state);
+    // store the state in cache
+    const GITHUB_OAUTH = `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}&state=${state}`;
     res.redirect(GITHUB_OAUTH);
 }
 
@@ -31,9 +35,23 @@ async function getUserInfoFromGitHub(bearerToken: string) {
  * else returns an error.
  */
 export async function oAuthCallbackGithub(req: Request, res: Response) {
-    // TODO: check if state matches the one we sent
+    // Check if state matches the one we sent
     // if it does, then we can exchange the code for an access token, otherwise throw an error.
-    // Not doing this poses a security risk.
+    const state = req.query.state as string;
+    if (!state) {
+        res.status(500).send("Failed to perform OAuth");
+        return;
+    }
+
+    const hasState = await redisClient.v4.sIsMember(STATE_CACHE_KEY, state);
+
+    if (!hasState) {
+        res.status(500).send("Failed to perform OAuth");
+        return;
+    }
+
+    redisClient.v4.sRem(STATE_CACHE_KEY, state);
+
     const GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
     const data = {
         client_id: process.env.GITHUB_CLIENT_ID,
@@ -52,8 +70,19 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
         },
     });
 
-    const bearerToken: string = tokenRequest.data["access_token"];
+    const bearerToken = tokenRequest.data["access_token"];
+
+    if (!bearerToken) {
+        res.status(500).send("Failed to perform OAuth");
+        return;
+    }
+
     const userInfo = await getUserInfoFromGitHub(bearerToken);
+
+    if (userInfo.status != 200) {
+        res.status(500).send("Failed to perform OAuth");
+        return;
+    }
     // set session
     req.session.userId = userInfo.data["id"];
     res.send(userInfo.data);
