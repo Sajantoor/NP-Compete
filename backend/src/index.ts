@@ -16,7 +16,7 @@ const port = 3000;
 const server = createServer(app);
 const webSocketServer = new WebSocketServer({ noServer: true });
 const RedisStore = connectRedis(session);
-const redisClient = createClient({ legacyMode: true });
+export const redisClient = createClient({ legacyMode: true });
 redisClient.connect().catch(console.error);
 
 // Use session middleware to save session cookies for authentication 
@@ -53,7 +53,6 @@ server.on("upgrade", async function upgrade(request, socket, head) {
         webSocketServer.handleUpgrade(req, socket, head, (ws) => {
             webSocketServer.emit("connection", ws, req);
         });
-
     });
 });
 
