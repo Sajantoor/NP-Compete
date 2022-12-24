@@ -1,7 +1,7 @@
 import axios from "axios";
 import crypto from "crypto";
 import { NextFunction, Request, Response } from "express";
-import { redisClient } from ".";
+import redisClient from "./redisClient";
 
 const STATE_CACHE_KEY = "state_cache";
 
@@ -10,7 +10,7 @@ const STATE_CACHE_KEY = "state_cache";
  */
 export async function initOAuthWithGithub(req: Request, res: Response) {
     // Check if the user is logged in already
-    if (checkIfAuth(req, res)) {
+    if (checkIfAuth(req)) {
         res.send("You are logged in...");
         return;
     }
@@ -96,7 +96,7 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
 
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-    if (!checkIfAuth(req, res)) {
+    if (!checkIfAuth(req)) {
         res.status(401).send("Unauthorized");
         return;
     }
@@ -104,6 +104,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     next();
 }
 
-function checkIfAuth(req: Request, res: Response) {
+function checkIfAuth(req: Request): boolean {
     return req.session.userId !== undefined;
 }
