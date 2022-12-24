@@ -5,7 +5,7 @@ import { createClient } from "redis";
 import connectRedis from 'connect-redis';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
-import { oAuthCallbackGithub, initOAuthWithGithub, isAuth } from "./authentication";
+import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth } from "./authentication";
 import { sendMessageToRoom } from "./websocket";
 import { COOKIE_NAME, IS_PRODUCTION } from "./constants";
 
@@ -82,15 +82,15 @@ app.get("/", (_, res) => {
     res.send("Hello World!");
 });
 
-app.get("/login", (_, res) => {
-    initOAuthWithGithub(res);
+app.get("/login", (req, res) => {
+    initOAuthWithGithub(req, res);
 });
 
 app.get("/callback", (req, res) => {
     oAuthCallbackGithub(req, res);
 });
 
-app.get("/profile", isAuth, (_, res) => {
+app.get("/profile", requireAuth, (_, res) => {
     res.send("You are logged in....");
 });
 
