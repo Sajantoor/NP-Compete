@@ -8,7 +8,13 @@ const STATE_CACHE_KEY = "state_cache";
 /**
  * Redirects to Github OAuth, inits OAuth process with a code.
  */
-export async function initOAuthWithGithub(res: Response) {
+export async function initOAuthWithGithub(req: Request, res: Response) {
+    // Check if the user is logged in already
+    if (checkIfAuth(req, res)) {
+        res.send("You are logged in...");
+        return;
+    }
+
     const state = crypto.randomUUID();
     await redisClient.sAdd(STATE_CACHE_KEY, state);
     // store the state in cache
@@ -89,10 +95,15 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
 }
 
 
-export function isAuth(req: Request, res: Response, next: NextFunction): void {
-    if (!req.session.userId) {
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+    if (!checkIfAuth(req, res)) {
         res.status(401).send("Unauthorized");
+        return;
     }
 
     next();
+}
+
+function checkIfAuth(req: Request, res: Response) {
+    return req.session.userId !== undefined;
 }
