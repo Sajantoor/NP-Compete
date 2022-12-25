@@ -7,17 +7,20 @@ dotenv.config();
 import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth } from "./components/authentication";
 import { sendMessageToRoom } from "./components/websocket";
 import sessionParser from "./components/sessionParser";
+import { createRoom, getRooms } from "./components/rooms";
 
 const app = express();
 const port = 3000;
 const server = createServer(app);
 const webSocketServer = new WebSocketServer({ noServer: true });
 
+app.use(express.json());
 app.use(sessionParser);
 
-// I'm not sure how this works but this used since verifyClient is pretty much 
-// deprecated: https://github.com/websockets/ws/issues/377#issuecomment-462152231
-server.on("upgrade", async function upgrade(request, socket, head: Buffer) {
+// To make a websocket connection, the client makes a GET request with an upgrade 
+// header, this looks for that, checks for authentication and emmits connection 
+// if authenticated.
+server.on("upgrade", async function upgrade(request, socket, head) {
     // @ts-ignore, TODO: Types don't match but this works, find a solution.
     sessionParser(request, {}, () => {
         const req = request as Request;
@@ -33,6 +36,7 @@ server.on("upgrade", async function upgrade(request, socket, head: Buffer) {
         });
     });
 });
+
 
 webSocketServer.on("connection", (webSocket, req) => {
     const roomId = req.url;
@@ -60,17 +64,18 @@ app.get("/", (_, res) => {
     res.send("Hello World!");
 });
 
-app.get("/login", (req, res) => {
-    initOAuthWithGithub(req, res);
-});
+app.get("/login", (req, res) => initOAuthWithGithub(req, res));
+app.get("/callback", (req, res) => oAuthCallbackGithub(req, res));
 
-app.get("/callback", (req, res) => {
-    oAuthCallbackGithub(req, res);
-});
+// Require authentication for the next endpoints...
+// app.use(requireAuth);
 
-app.get("/profile", requireAuth, (_, res) => {
+app.get("/profile", (_, res) => {
     res.send("You are logged in....");
 });
+
+app.get("/rooms", (req, res) => getRooms(req, res));
+app.post("/rooms", (req, res) => createRoom(req, res));
 
 server.listen(port, () => {
     console.log(`Listening to port ${port}`);
