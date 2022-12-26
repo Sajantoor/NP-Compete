@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import crypto from "crypto";
 import agron2 from "argon2";
 import redisClient from "./redisClient";
-import { badRequest, internalServerError } from "../utilities/errors";
+import { badRequestError, internalServerError } from "../utilities/errors";
 
 const REDIS_ROOMS_KEY = "rooms";
 
@@ -32,7 +32,7 @@ export async function createRoom(req: Request, res: Response) {
     let room: Room = req.body as Room;
 
     if (!validateRoom(room)) {
-        return badRequest(res, "Invalid room data");
+        return badRequestError(res, "Invalid room data");
     }
 
     const uuid = crypto.randomUUID();

@@ -1,6 +1,5 @@
 import { Response } from "express";
 
-
 export function internalServerError(res: Response, msg?: string) {
     let message = "Internal Server Error";
     if (msg) {
@@ -9,7 +8,7 @@ export function internalServerError(res: Response, msg?: string) {
     res.status(500).json({ "error": message });
 }
 
-export function badRequest(res: Response, msg?: string) {
+export function badRequestError(res: Response, msg?: string) {
     let message = "Bad Request";
     if (msg) {
         message += ": " + msg;
@@ -18,7 +17,7 @@ export function badRequest(res: Response, msg?: string) {
     res.status(400).json({ "error": message });
 }
 
-export function unauthorized(res: Response, msg?: string) {
+export function unauthorizedError(res: Response, msg?: string) {
     let message = "Unauthorized";
     if (msg) {
         message += ": " + msg;
