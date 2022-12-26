@@ -99,10 +99,10 @@ app.get("/callback", (req, res) => oAuthCallbackGithub(req, res));
 app.use(requireAuth);
 
 app.get("/profile", (_, res) => {
-    res.send("You are logged in....");
+    res.json({ "message": "You are authenticated" });
 });
 
-app.get("/rooms", (req, res) => getRooms(req, res));
+app.get("/rooms", (_, res) => getRooms(res));
 app.post("/rooms", (req, res) => createRoom(req, res));
 
 server.listen(port, () => {

@@ -1,6 +1,7 @@
 import axios from "axios";
 import crypto from "crypto";
 import { NextFunction, Request, Response } from "express";
+import { badRequest, internalServerError, unauthorized } from "../utilities/errors";
 import redisClient from "./redisClient";
 
 const STATE_CACHE_KEY = "state_cache";
@@ -11,8 +12,7 @@ const STATE_CACHE_KEY = "state_cache";
 export async function initOAuthWithGithub(req: Request, res: Response) {
     // Check if the user is logged in already
     if (checkIfAuth(req)) {
-        res.send("You are logged in...");
-        return;
+        return badRequest(res, "User is already logged in");
     }
 
     const state = crypto.randomUUID();
@@ -45,15 +45,13 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
     // if it does, then we can exchange the code for an access token, otherwise throw an error.
     const state = req.query.state as string;
     if (!state) {
-        res.status(500).send("Failed to perform OAuth");
-        return;
+        return internalServerError(res, "Failed to perform OAuth");
     }
 
     const hasState = await redisClient.v4.sIsMember(STATE_CACHE_KEY, state);
 
     if (!hasState) {
-        res.status(500).send("Failed to perform OAuth");
-        return;
+        return internalServerError(res, "Failed to perform OAuth");
     }
 
     redisClient.v4.sRem(STATE_CACHE_KEY, state);
@@ -79,26 +77,23 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
     const bearerToken = tokenRequest.data["access_token"];
 
     if (!bearerToken) {
-        res.status(500).send("Failed to perform OAuth");
-        return;
+        return internalServerError(res, "Failed to perform OAuth");
     }
 
     const userInfo = await getUserInfoFromGitHub(bearerToken);
 
     if (userInfo.status != 200) {
-        res.status(500).send("Failed to perform OAuth");
-        return;
+        return internalServerError(res, "Failed to perform OAuth");
     }
     // set session
     req.session.userId = userInfo.data["id"];
-    res.send(userInfo.data);
+    res.json(userInfo.data);
 }
 
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
     if (!checkIfAuth(req)) {
-        res.status(401).send("Unauthorized");
-        return;
+        return unauthorized(res);
     }
 
     next();

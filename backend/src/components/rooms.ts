@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import crypto from "crypto";
 import agron2 from "argon2";
 import redisClient from "./redisClient";
+import { badRequest, internalServerError } from "../utilities/errors";
 
 const REDIS_ROOMS_KEY = "rooms";
 
@@ -13,7 +14,7 @@ interface Room {
     password?: string;
 }
 
-export async function getRooms(req: Request, res: Response) {
+export async function getRooms(res: Response) {
     const rooms: string[] = await redisClient.v4.sMembers(REDIS_ROOMS_KEY);
 
     // The rooms were json stringified when added to redis, so we need to parse them
@@ -24,15 +25,14 @@ export async function getRooms(req: Request, res: Response) {
         return parsedRoom;
     });
 
-    res.send(parsedRooms)
+    res.json(parsedRooms)
 }
 
 export async function createRoom(req: Request, res: Response) {
     let room: Room = req.body as Room;
 
     if (!validateRoom(room)) {
-        res.status(400).send("Bad Request: Invalid room data");
-        return;
+        return badRequest(res, "Invalid room data");
     }
 
     const uuid = crypto.randomUUID();
@@ -51,13 +51,12 @@ export async function createRoom(req: Request, res: Response) {
     );
 
     if (addToRedis === 0) {
-        res.status(500).send("Server Error: Could not create room");
-        return;
+        return internalServerError(res, "Failed to create room");
     }
 
     // Don't send the password to the client
     delete room.password;
-    res.status(201).send(room);
+    res.status(201).json(room);
 }
 
 export async function getRoom(roomUuid: string): Promise<Room | null> {
