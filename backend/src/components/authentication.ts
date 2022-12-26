@@ -1,7 +1,7 @@
 import axios from "axios";
 import crypto from "crypto";
 import { NextFunction, Request, Response } from "express";
-import { badRequest, internalServerError, unauthorized } from "../utilities/errors";
+import { badRequestError, internalServerError, unauthorizedError } from "../utilities/errors";
 import redisClient from "./redisClient";
 
 const STATE_CACHE_KEY = "state_cache";
@@ -12,7 +12,7 @@ const STATE_CACHE_KEY = "state_cache";
 export async function initOAuthWithGithub(req: Request, res: Response) {
     // Check if the user is logged in already
     if (checkIfAuth(req)) {
-        return badRequest(res, "User is already logged in");
+        return badRequestError(res, "User is already logged in");
     }
 
     const state = crypto.randomUUID();
@@ -93,7 +93,7 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
     if (!checkIfAuth(req)) {
-        return unauthorized(res);
+        return unauthorizedError(res);
     }
 
     next();
