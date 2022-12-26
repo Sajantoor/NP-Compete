@@ -28,6 +28,19 @@ export async function getRooms(res: Response) {
     res.json(parsedRooms)
 }
 
+export async function getRoomEndpoint(req: Request, res: Response) {
+    const roomUuid = req.params.uuid;
+    const room = await getRoom(roomUuid);
+
+    if (!room) {
+        return badRequestError(res, "Room does not exist");
+    }
+
+    // Don't send the password to the client
+    delete room.password;
+    res.json(room);
+}
+
 export async function createRoom(req: Request, res: Response) {
     let room: Room = req.body as Room;
 
@@ -69,6 +82,31 @@ export async function getRoom(roomUuid: string): Promise<Room | null> {
 
     return null;
 }
+
+export async function patchRoom(req: Request, res: Response) {
+    const roomUuid = req.params.uuid;
+    const room = await getRoom(roomUuid);
+
+    if (!room) {
+        return badRequestError(res, "Room does not exist");
+    }
+
+    if (room.owner !== req.session.userId) {
+        return badRequestError(res, "You are not the owner of this room");
+    }
+
+    const newRoomData = req.body as Room;
+
+    if (!validateRoom(newRoomData)) {
+        return badRequestError(res, "Invalid room data");
+    }
+
+    if (newRoomData.password) {
+        const hashedPassword = await agron2.hash(newRoomData.password);
+        newRoomData.password = hashedPassword;
+    }
+}
+
 
 function validateRoom(room: Room) {
     const MAX_LENGTH = 20;
