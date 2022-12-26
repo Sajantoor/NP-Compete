@@ -1,19 +1,16 @@
 import express, { Request } from "express";
-import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
-import argon2 from "argon2";
 import dotenv from "dotenv";
 dotenv.config();
 
 import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth } from "./components/authentication";
-import { sendMessageToRoom } from "./components/websocket";
+import webSocketServer from "./components/websocket";
 import sessionParser from "./components/sessionParser";
-import { createRoom, getRoom, getRooms } from "./components/rooms";
+import { createRoom, getRoomEndpoint, getRooms, patchRoom } from "./components/rooms";
 
 const app = express();
 const port = 3000;
 const server = createServer(app);
-const webSocketServer = new WebSocketServer({ noServer: true });
 
 app.use(express.json());
 app.use(sessionParser);
@@ -39,55 +36,6 @@ server.on("upgrade", async function upgrade(request, socket, head) {
 });
 
 
-webSocketServer.on("connection", async (webSocket, req) => {
-    const roomUuid = req.url?.split("/")[1];
-
-    if (!roomUuid) {
-        webSocket.send("Room uuid is missing");
-        webSocket.close();
-        return;
-    }
-
-    const room = await getRoom(roomUuid);
-
-    if (!room) {
-        webSocket.send("Room does not exist");
-        webSocket.close();
-        return;
-    }
-
-    // if it has a password, check if the password is correct
-    if (room.password) {
-        const hashedPassword = req.headers["password"];
-        if (!hashedPassword || typeof hashedPassword !== "string") {
-            webSocket.send("Password is missing");
-            webSocket.close();
-            return;
-        }
-
-        const passwordMatches = await argon2.verify(room.password, hashedPassword);
-
-        if (!passwordMatches) {
-            webSocket.send("Incorrect password for this room...");
-            webSocket.close();
-            return;
-        }
-    }
-
-    webSocket.roomId = roomUuid;
-    sendMessageToRoom(webSocketServer, webSocket, roomUuid, "A new user has joined the room");
-
-    // handle close event...
-    webSocket.on("close", () => {
-        sendMessageToRoom(webSocketServer, webSocket, roomUuid, "A user has left the room");
-    });
-
-    // handle message event...
-    webSocket.on("message", (data) => {
-        sendMessageToRoom(webSocketServer, webSocket, roomUuid, data);
-    });
-});
-
 app.get("/", (_, res) => {
     res.send("Hello World!");
 });
@@ -103,7 +51,9 @@ app.get("/profile", (_, res) => {
 });
 
 app.get("/rooms", (_, res) => getRooms(res));
+app.get("/rooms/:uuid", (req, res) => getRoomEndpoint(req, res));
 app.post("/rooms", (req, res) => createRoom(req, res));
+app.patch("/rooms/:uuid", (req, res) => patchRoom(req, res));
 
 server.listen(port, () => {
     console.log(`Listening to port ${port}`);
