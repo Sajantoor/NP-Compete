@@ -6,7 +6,7 @@ dotenv.config();
 import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth } from "./components/authentication";
 import webSocketServer from "./components/websocket";
 import sessionParser from "./components/sessionParser";
-import { createRoom, getRoomEndpoint, getRooms, patchRoom } from "./components/rooms";
+import { createRoom, getRoom, getRooms, patchRoom } from "./components/rooms";
 
 const app = express();
 const port = 3000;
@@ -51,7 +51,7 @@ app.get("/profile", (_, res) => {
 });
 
 app.get("/rooms", (_, res) => getRooms(res));
-app.get("/rooms/:uuid", (req, res) => getRoomEndpoint(req, res));
+app.get("/rooms/:uuid", (req, res) => getRoom(req, res));
 app.post("/rooms", (req, res) => createRoom(req, res));
 app.patch("/rooms/:uuid", (req, res) => patchRoom(req, res));
 

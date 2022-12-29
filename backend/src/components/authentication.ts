@@ -2,9 +2,7 @@ import axios from "axios";
 import crypto from "crypto";
 import { NextFunction, Request, Response } from "express";
 import { badRequestError, internalServerError, unauthorizedError } from "../utilities/errors";
-import redisClient from "./redisClient";
-
-const STATE_CACHE_KEY = "state_cache";
+import { RedisCache } from "./redis";
 
 /**
  * Redirects to Github OAuth, inits OAuth process with a code.
@@ -16,8 +14,8 @@ export async function initOAuthWithGithub(req: Request, res: Response) {
     }
 
     const state = crypto.randomUUID();
-    await redisClient.sAdd(STATE_CACHE_KEY, state);
     // store the state in cache
+    await RedisCache.addState(state);
     const GITHUB_OAUTH = `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}&state=${state}`;
     res.redirect(GITHUB_OAUTH);
 }
@@ -48,13 +46,13 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
         return internalServerError(res, "Failed to perform OAuth");
     }
 
-    const hasState = await redisClient.v4.sIsMember(STATE_CACHE_KEY, state);
+    const hasState = await RedisCache.hasState(state);
 
     if (!hasState) {
         return internalServerError(res, "Failed to perform OAuth");
     }
 
-    redisClient.v4.sRem(STATE_CACHE_KEY, state);
+    RedisCache.removeState(state);
 
     const GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
     const data = {
@@ -91,6 +89,9 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
 }
 
 
+/**
+ * Middleware to check if the user is logged in.
+ */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
     if (!checkIfAuth(req)) {
         return unauthorizedError(res);
@@ -99,6 +100,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     next();
 }
 
+/**
+ * Checks if the user is logged in.
+ * @returns Returns true if the user is logged in, false otherwise.
+ */
 function checkIfAuth(req: Request): boolean {
     return req.session.userId !== undefined;
 }
