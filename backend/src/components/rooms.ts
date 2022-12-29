@@ -50,7 +50,7 @@ export async function createRoom(req: Request, res: Response) {
     }
 
     const uuid = crypto.randomUUID();
-    room = { ...room, owner: req.session.userId, uuid: uuid };
+    room = { ...room, owner: req.session.userId, uuid: uuid, members: [] };
 
     if (room.password) {
         const hashedPassword = await agron2.hash(room.password);
@@ -94,11 +94,34 @@ export async function patchRoom(req: Request, res: Response) {
         newRoomData.password = hashedPassword;
     }
 
-    await RedisCache.updateRoom(newRoomData);
+    // Take the new room data and merge it with the old room data
+    const updatedRoom = { ...room, ...newRoomData };
+    await RedisCache.updateRoom(updatedRoom);
 
     // DO NOT send password to the client
-    delete newRoomData.password;
-    res.json(newRoomData).status(200);
+    delete updatedRoom.password;
+    res.json(updatedRoom).status(200);
+}
+
+export async function addRoomMember(roomUuid: string, userId: string): Promise<number> {
+    const room = await RedisCache.getRoomByUuid(roomUuid);
+    if (!room) return 0;
+
+    room.members.push(userId);
+    return await RedisCache.updateRoom(room);
+}
+
+export async function removeRoomMember(roomUuid: string, userId: string): Promise<number> {
+    const room = await RedisCache.getRoomByUuid(roomUuid);
+    if (!room) return 0;
+
+    // if the last member leaves the room, delete the room
+    if (room.members.length === 1) {
+        return await RedisCache.removeRoomByUuid(roomUuid);
+    }
+
+    room.members = room.members.filter(member => member !== userId);
+    return await RedisCache.updateRoom(room);
 }
 
 
