@@ -129,7 +129,6 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
         return false;
     }
 
-    // Check if the password is correct
     if (room.password) {
         const hashedPassword = req.headers["password"];
         if (!hashedPassword || typeof hashedPassword !== "string") {
@@ -145,6 +144,12 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
             webSocket.close();
             return false;
         }
+    }
+
+    if (room.members.length >= room.size) {
+        webSocket.send("Room is full");
+        webSocket.close();
+        return false;
     }
 
     return true;

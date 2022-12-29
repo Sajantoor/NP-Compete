@@ -1,6 +1,8 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { IncomingMessage } from "http";
 import { verifyUserCanJoinRoom } from "./rooms";
+import { RedisCache } from "./redis";
+import { Request } from "express";
 
 const webSocketServer = new WebSocketServer({ noServer: true });
 
@@ -8,6 +10,7 @@ function heartBeat() {
     webSocketServer.clients.forEach((webSocket: WebSocket) => {
         if (!webSocket.isAlive) {
             console.log("Found a dead websocket, terminating...");
+            RedisCache.removeRoomMember(webSocket.roomId, webSocket.userId);
             return webSocket.terminate();
         }
 
@@ -22,6 +25,9 @@ async function onConnection(webSocket: WebSocket, req: IncomingMessage) {
     const roomUuid = req.url?.split("/")[1] as string;
     webSocket.roomId = roomUuid;
     webSocket.isAlive = true;
+    webSocket.userId = (req as Request).session.userId!;
+
+    await RedisCache.addRoomMember(roomUuid, webSocket.userId);
 
     sendMessageToRoom(
         webSocketServer,
@@ -32,6 +38,8 @@ async function onConnection(webSocket: WebSocket, req: IncomingMessage) {
 
     // handle close event...
     webSocket.on("close", () => {
+        RedisCache.removeRoomMember(roomUuid, webSocket.userId);
+
         sendMessageToRoom(
             webSocketServer,
             webSocket,

@@ -4,4 +4,5 @@ export interface Room {
     uuid: string;
     owner?: string;
     password?: string;
+    members: string[];
 }

@@ -54,6 +54,24 @@ class RedisCache {
         await this.removeRoomByUuid(uuid);
         return await this.addRoom(room);
     }
+
+    static async addRoomMember(roomUuid: string, userId: string): Promise<number> {
+        const room = await this.getRoomByUuid(roomUuid);
+        if (room) {
+            room.members.push(userId);
+            return await this.updateRoom(room);
+        }
+        return 0;
+    }
+
+    static async removeRoomMember(roomUuid: string, userId: string): Promise<number> {
+        const room = await this.getRoomByUuid(roomUuid);
+        if (room) {
+            room.members = room.members.filter(member => member !== userId);
+            return await this.updateRoom(room);
+        }
+        return 0;
+    }
 }
 
 export { RedisCache, redisClient };
