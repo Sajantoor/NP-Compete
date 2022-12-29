@@ -1,36 +1,34 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
 import agron2 from "argon2";
-import redisClient from "./redisClient";
 import { badRequestError, internalServerError } from "../utilities/errors";
+import { IncomingMessage } from "http";
+import { WebSocket } from "ws";
+import { RedisCache } from "./redis";
+import { Room } from "../types/Room";
 
-const REDIS_ROOMS_KEY = "rooms";
-
-interface Room {
-    name: string;
-    size: number;
-    uuid: string;
-    owner?: string;
-    password?: string;
-}
-
+/**
+ * 
+ * Gets all the rooms from the redis cache and sends them to the client.
+ */
 export async function getRooms(res: Response) {
-    const rooms: string[] = await redisClient.v4.sMembers(REDIS_ROOMS_KEY);
+    const rooms = await RedisCache.getRooms();
 
-    // The rooms were json stringified when added to redis, so we need to parse them
-    // before sending them back to the client, DO NOT send the password to the client.
-    const parsedRooms = rooms.map((room: string) => {
-        const parsedRoom = JSON.parse(room);
-        delete parsedRoom.password;
-        return parsedRoom;
+    // DO NOT send the password to the client.  
+    const roomsToSend = rooms.map(room => {
+        delete room.password;
+        return room;
     });
 
-    res.json(parsedRooms)
+    res.json(roomsToSend);
 }
 
-export async function getRoomEndpoint(req: Request, res: Response) {
+/**
+ * Gets a room by uuid from the redis cache and sends it to the client. 
+ */
+export async function getRoom(req: Request, res: Response) {
     const roomUuid = req.params.uuid;
-    const room = await getRoom(roomUuid);
+    const room = await RedisCache.getRoomByUuid(roomUuid);
 
     if (!room) {
         return badRequestError(res, "Room does not exist");
@@ -41,15 +39,17 @@ export async function getRoomEndpoint(req: Request, res: Response) {
     res.json(room);
 }
 
+/**
+ * Creates a room and adds it to the redis cache.
+ */
 export async function createRoom(req: Request, res: Response) {
-    let room: Room = req.body as Room;
+    let room = req.body as Room;
 
-    if (!validateRoom(room)) {
+    if (!validateInputtedRoom(room)) {
         return badRequestError(res, "Invalid room data");
     }
 
     const uuid = crypto.randomUUID();
-    room = { ...room, uuid };
     room = { ...room, owner: req.session.userId, uuid: uuid };
 
     if (room.password) {
@@ -57,11 +57,7 @@ export async function createRoom(req: Request, res: Response) {
         room.password = hashedPassword;
     }
 
-    // TOOD: Change this to use a hash or use JSON instead of using a string
-    const addToRedis: number = await redisClient.v4.sAdd(
-        REDIS_ROOMS_KEY,
-        JSON.stringify(room)
-    );
+    const addToRedis = await RedisCache.addRoom(room);
 
     if (addToRedis === 0) {
         return internalServerError(res, "Failed to create room");
@@ -72,20 +68,12 @@ export async function createRoom(req: Request, res: Response) {
     res.status(201).json(room);
 }
 
-export async function getRoom(roomUuid: string): Promise<Room | null> {
-    const rooms: string[] = await redisClient.v4.sMembers(REDIS_ROOMS_KEY);
-    const parsedRooms = rooms.map((room: string) => JSON.parse(room));
-
-    for (const room of parsedRooms) {
-        if (room.uuid === roomUuid) return room;
-    }
-
-    return null;
-}
-
+/**
+ * Updates a room in the redis cache, sends the updated room to the client.
+ */
 export async function patchRoom(req: Request, res: Response) {
     const roomUuid = req.params.uuid;
-    const room = await getRoom(roomUuid);
+    const room = await RedisCache.getRoomByUuid(roomUuid);
 
     if (!room) {
         return badRequestError(res, "Room does not exist");
@@ -97,7 +85,7 @@ export async function patchRoom(req: Request, res: Response) {
 
     const newRoomData = req.body as Room;
 
-    if (!validateRoom(newRoomData)) {
+    if (!validateInputtedRoom(newRoomData)) {
         return badRequestError(res, "Invalid room data");
     }
 
@@ -105,10 +93,68 @@ export async function patchRoom(req: Request, res: Response) {
         const hashedPassword = await agron2.hash(newRoomData.password);
         newRoomData.password = hashedPassword;
     }
+
+    await RedisCache.updateRoom(newRoomData);
+
+    // DO NOT send password to the client
+    delete newRoomData.password;
+    res.json(newRoomData).status(200);
 }
 
 
-function validateRoom(room: Room) {
+/**
+ * Verify if the user can join the room, if the room has a password the user is 
+ * required to send the password in the request headers. Room uuid is required in the 
+ * request url.
+ * 
+ * 
+ * @param webSocket WebSocket trying to join the room
+ * @param req Request from the WebSocket
+ * @returns True if the user can join the room, false if the user cannot join the room
+*/
+export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingMessage): Promise<boolean> {
+    const roomUuid = req.url?.split("/")[1];
+
+    if (!roomUuid) {
+        webSocket.send("Room uuid is missing");
+        webSocket.close();
+        return false;
+    }
+
+    const room = await RedisCache.getRoomByUuid(roomUuid);
+
+    if (!room) {
+        webSocket.send("Room does not exist");
+        webSocket.close();
+        return false;
+    }
+
+    // Check if the password is correct
+    if (room.password) {
+        const hashedPassword = req.headers["password"];
+        if (!hashedPassword || typeof hashedPassword !== "string") {
+            webSocket.send("Password is missing");
+            webSocket.close();
+            return false;
+        }
+
+        const isCorrectPassword = await agron2.verify(room.password, hashedPassword);
+
+        if (!isCorrectPassword) {
+            webSocket.send("Incorrect password for this room...");
+            webSocket.close();
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * @param room Room to validate
+ * @returns Whether the room is valid or not
+ */
+function validateInputtedRoom(room: Room) {
     const MAX_LENGTH = 20;
     const MAX_ROOM_SIZE = 10;
 

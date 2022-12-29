@@ -1,47 +1,8 @@
 import { WebSocket, WebSocketServer } from "ws";
-import argon2 from "argon2";
 import { IncomingMessage } from "http";
-import { getRoom } from "./rooms";
+import { verifyUserCanJoinRoom } from "./rooms";
 
 const webSocketServer = new WebSocketServer({ noServer: true });
-
-async function verifyRoom(webSocket: WebSocket, req: IncomingMessage): Promise<boolean> {
-    const roomUuid = req.url?.split("/")[1];
-
-    if (!roomUuid) {
-        webSocket.send("Room uuid is missing");
-        webSocket.close();
-        return false;
-    }
-
-    const room = await getRoom(roomUuid);
-
-    if (!room) {
-        webSocket.send("Room does not exist");
-        webSocket.close();
-        return false;
-    }
-
-    // if it has a password, check if the password is correct
-    if (room.password) {
-        const hashedPassword = req.headers["password"];
-        if (!hashedPassword || typeof hashedPassword !== "string") {
-            webSocket.send("Password is missing");
-            webSocket.close();
-            return false;
-        }
-
-        const passwordMatches = await argon2.verify(room.password, hashedPassword);
-
-        if (!passwordMatches) {
-            webSocket.send("Incorrect password for this room...");
-            webSocket.close();
-            return false;
-        }
-    }
-
-    return true;
-}
 
 function heartBeat() {
     webSocketServer.clients.forEach((webSocket: WebSocket) => {
@@ -56,7 +17,7 @@ function heartBeat() {
 }
 
 async function onConnection(webSocket: WebSocket, req: IncomingMessage) {
-    if (!verifyRoom(webSocket, req)) return;
+    if (!verifyUserCanJoinRoom(webSocket, req)) return;
 
     const roomUuid = req.url?.split("/")[1] as string;
     webSocket.roomId = roomUuid;
