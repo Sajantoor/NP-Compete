@@ -40,3 +40,11 @@ dist/
 
 # ignore yarn.lock
 yarn.lock
+
+# next.js
+.next/
+/out/
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+/build
