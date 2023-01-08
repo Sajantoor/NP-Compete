@@ -1,6 +1,7 @@
 import express, { Request } from "express";
 import { createServer } from 'http';
 import dotenv from "dotenv";
+import cors from "cors";
 dotenv.config();
 
 import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth } from "./components/authentication";
@@ -9,8 +10,13 @@ import sessionParser from "./components/sessionParser";
 import { createRoom, getRoom, getRooms, patchRoom } from "./components/rooms";
 
 const app = express();
-const port = 3000;
+const port = 4000;
 const server = createServer(app);
+
+// cors middleware
+app.use(cors({
+    origin: "*",
+}));
 
 app.use(express.json());
 app.use(sessionParser);
@@ -37,10 +43,10 @@ server.on("upgrade", async function upgrade(request, socket, head) {
 
 
 app.get("/", (_, res) => {
-    res.send("Hello World!");
+    res.json({ "message": "Hello World!" });
 });
 
-app.get("/login", (req, res) => initOAuthWithGithub(req, res));
+app.post("/login", (req, res) => initOAuthWithGithub(req, res));
 app.get("/callback", (req, res) => oAuthCallbackGithub(req, res));
 
 // Require authentication for the next endpoints...

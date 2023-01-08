@@ -17,7 +17,7 @@ export async function initOAuthWithGithub(req: Request, res: Response) {
     // store the state in cache
     await RedisCache.addState(state);
     const GITHUB_OAUTH = `https://github.com/login/oauth/authorize?client_id=${process.env.GITHUB_CLIENT_ID}&state=${state}`;
-    res.redirect(GITHUB_OAUTH);
+    res.json({ "url": GITHUB_OAUTH });
 }
 
 async function getUserInfoFromGitHub(bearerToken: string) {
