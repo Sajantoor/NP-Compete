@@ -15,7 +15,8 @@ const server = createServer(app);
 
 // cors middleware
 app.use(cors({
-    origin: "*",
+    origin: process.env.CLIENT_URL,
+    credentials: true,
 }));
 
 app.use(express.json());
@@ -41,25 +42,26 @@ server.on("upgrade", async function upgrade(request, socket, head) {
     });
 });
 
+const API_PREFIX = "/api/v1";
 
-app.get("/", (_, res) => {
+app.get(`${API_PREFIX}/`, (_, res) => {
     res.json({ "message": "Hello World!" });
 });
 
-app.post("/login", (req, res) => initOAuthWithGithub(req, res));
-app.get("/callback", (req, res) => oAuthCallbackGithub(req, res));
+app.post(`${API_PREFIX}/login`, (req, res) => initOAuthWithGithub(req, res));
+app.get(`${API_PREFIX}/callback`, (req, res) => oAuthCallbackGithub(req, res));
+app.get(`${API_PREFIX}/rooms`, (_, res) => getRooms(res));
+app.get(`${API_PREFIX}/rooms/:uuid`, (req, res) => getRoom(req, res));
 
 // Require authentication for the next endpoints...
 app.use(requireAuth);
 
-app.get("/profile", (_, res) => {
+app.get(`${API_PREFIX}/profile`, (_, res) => {
     res.json({ "message": "You are authenticated" });
 });
 
-app.get("/rooms", (_, res) => getRooms(res));
-app.get("/rooms/:uuid", (req, res) => getRoom(req, res));
-app.post("/rooms", (req, res) => createRoom(req, res));
-app.patch("/rooms/:uuid", (req, res) => patchRoom(req, res));
+app.post(`${API_PREFIX}/rooms`, (req, res) => createRoom(req, res));
+app.patch(`${API_PREFIX}/rooms/:uuid`, (req, res) => patchRoom(req, res));
 
 server.listen(port, () => {
     console.log(`Listening to port ${port}`);
