@@ -6,6 +6,7 @@ import { IncomingMessage } from "http";
 import { WebSocket } from "ws";
 import { RedisCache } from "./redis";
 import { Room } from "../types/Room";
+import { sendJSON } from "./websocket";
 
 /**
  * 
@@ -139,7 +140,7 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
     const roomUuid = req.url?.split("/")[1];
 
     if (!roomUuid) {
-        webSocket.send("Room uuid is missing");
+        sendJSON(webSocket, { event: "error", message: "Room uuid is required" });
         webSocket.close();
         return false;
     }
@@ -147,7 +148,7 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
     const room = await RedisCache.getRoomByUuid(roomUuid);
 
     if (!room) {
-        webSocket.send("Room does not exist");
+        sendJSON(webSocket, { event: "error", message: "Room does not exist" })
         webSocket.close();
         return false;
     }
@@ -155,7 +156,7 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
     if (room.password) {
         const hashedPassword = req.headers["password"];
         if (!hashedPassword || typeof hashedPassword !== "string") {
-            webSocket.send("Password is missing");
+            sendJSON(webSocket, { event: "error", message: "Password is required to join this room" });
             webSocket.close();
             return false;
         }
@@ -163,14 +164,14 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
         const isCorrectPassword = await agron2.verify(room.password, hashedPassword);
 
         if (!isCorrectPassword) {
-            webSocket.send("Incorrect password for this room...");
+            sendJSON(webSocket, { event: "error", message: "Incorrect password" });
             webSocket.close();
             return false;
         }
     }
 
     if (room.members.length >= room.size) {
-        webSocket.send("Room is full");
+        sendJSON(webSocket, { event: "error", message: "Room is full" })
         webSocket.close();
         return false;
     }

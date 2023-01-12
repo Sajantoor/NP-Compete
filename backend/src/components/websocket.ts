@@ -32,7 +32,7 @@ async function onConnection(webSocket: WebSocket, req: IncomingMessage) {
         webSocketServer,
         webSocket,
         roomUuid,
-        "A new user has joined the room"
+        { event: "userJoined", userId: webSocket.userId }
     );
 
     // handle close event...
@@ -43,13 +43,18 @@ async function onConnection(webSocket: WebSocket, req: IncomingMessage) {
             webSocketServer,
             webSocket,
             roomUuid,
-            "A user has left the room"
+            { event: "userLeft", userId: webSocket.userId }
         );
     });
 
     // handle message event...
     webSocket.on("message", (data) => {
-        sendMessageToRoom(webSocketServer, webSocket, roomUuid, data);
+        const message = {
+            event: "message",
+            userId: webSocket.userId,
+            message: data.toString(),
+        }
+        sendMessageToRoom(webSocketServer, webSocket, roomUuid, message);
     });
 
     // handle ping event...
@@ -58,7 +63,7 @@ async function onConnection(webSocket: WebSocket, req: IncomingMessage) {
 
 webSocketServer.on("connection", onConnection);
 
-const heartBeatInterval = setInterval(heartBeat, 1000);
+const heartBeatInterval = setInterval(heartBeat, 10000);
 
 webSocketServer.on("close", () => {
     console.log("Websocket server closed");
@@ -69,13 +74,17 @@ export function sendMessageToRoom(
     webSocketServer: WebSocketServer,
     webSocket: WebSocket,
     roomId: string,
-    message: any
+    message: Object
 ) {
     webSocketServer.clients.forEach((client) => {
         if (client != webSocket && client.roomId === roomId) {
-            client.send(message);
+            sendJSON(client, message);
         }
     });
+}
+
+export function sendJSON(webSocket: WebSocket, message: Object) {
+    webSocket.send(JSON.stringify(message));
 }
 
 export default webSocketServer;

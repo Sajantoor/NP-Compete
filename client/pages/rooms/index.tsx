@@ -2,7 +2,7 @@ import { SERVER_URL } from "../../constants";
 import { GetStaticProps } from "next";
 import Router from "next/router";
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Room } from "../../types/room";
 
 interface RoomInput {
@@ -58,13 +58,12 @@ export default function Rooms({ rooms }: { rooms: Room[] }) {
                     (room, index) => {
                         const roomLink = `/rooms/${room.uuid}`
                         return (
-                            <>
-                                <li key={index + "li"}> {room.name} {room.owner} {room.members} {room.size} </li>
-                                <Link key={index + "link"} href={roomLink} > Link </Link>
-                            </>
+                            <Fragment key={room.uuid + index}>
+                                <li key={index}> name: {room.name} owner: {room.owner} members: {room.members.length}/{room.size} </li>
+                                <Link key={room.uuid} href={roomLink} > Link </Link>
+                            </Fragment>
                         )
                     }
-
                 )}
             </ul>
 
