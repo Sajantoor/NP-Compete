@@ -139,6 +139,13 @@ export async function removeRoomMember(roomUuid: string, userId: string): Promis
 export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingMessage): Promise<boolean> {
     const roomUuid = req.url?.split("/")[1];
 
+    // if the user is already in a room, don't let them join another room
+    if (webSocket.roomId) {
+        sendJSON(webSocket, { event: "error", message: "You are already in a room" });
+        webSocket.close();
+        return false;
+    }
+
     if (!roomUuid) {
         sendJSON(webSocket, { event: "error", message: "Room uuid is required" });
         webSocket.close();
