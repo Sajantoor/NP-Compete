@@ -107,3 +107,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 function checkIfAuth(req: Request): boolean {
     return req.session.userId !== undefined;
 }
+
+export function logout(req: Request) {
+    req.session.destroy((err) => {
+        if (err) console.error(err);
+    });
+}

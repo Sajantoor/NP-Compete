@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 dotenv.config();
 
-import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth } from "./components/authentication";
+import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth, logout } from "./components/authentication";
 import webSocketServer from "./components/websocket";
 import sessionParser from "./components/sessionParser";
 import { createRoom, getRoom, getRooms, patchRoom } from "./components/rooms";
@@ -62,6 +62,7 @@ app.get(`${API_PREFIX}/profile`, (_, res) => {
 
 app.post(`${API_PREFIX}/rooms`, (req, res) => createRoom(req, res));
 app.patch(`${API_PREFIX}/rooms/:uuid`, (req, res) => patchRoom(req, res));
+app.post(`${API_PREFIX}/logout`, (req) => logout(req));
 
 server.listen(port, () => {
     console.log(`Listening to port ${port}`);
