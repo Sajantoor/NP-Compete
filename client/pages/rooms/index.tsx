@@ -3,7 +3,7 @@ import { GetStaticProps } from "next";
 import Router from "next/router";
 import Link from "next/link";
 import { Fragment, useState } from "react";
-import { Room } from "../../types/room";
+import { Room } from "../../types/Room";
 
 interface RoomInput {
     name: string,
@@ -43,8 +43,7 @@ export default function Rooms({ rooms }: { rooms: Room[] }) {
         console.log(data);
 
         if (response.ok) {
-            Router.reload();
-            return data;
+            Router.push(`/rooms/${data.uuid}`);
         }
 
         return null;
