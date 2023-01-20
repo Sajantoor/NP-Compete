@@ -2,6 +2,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { IncomingMessage } from "http";
 import { addRoomMember, removeRoomMember, verifyUserCanJoinRoom } from "./rooms";
 import { Request } from "express";
+import { WebSocketMessage } from "../types/WebSocketMessage";
 
 const webSocketServer = new WebSocketServer({ noServer: true });
 
@@ -49,7 +50,7 @@ async function onConnection(webSocket: WebSocket, req: IncomingMessage) {
 
     // handle message event...
     webSocket.on("message", (data) => {
-        const message = {
+        const message: WebSocketMessage = {
             event: "message",
             userId: webSocket.userId,
             message: data.toString(),
@@ -74,7 +75,7 @@ export function sendMessageToRoom(
     webSocketServer: WebSocketServer,
     webSocket: WebSocket,
     roomId: string,
-    message: Object
+    message: WebSocketMessage
 ) {
     webSocketServer.clients.forEach((client) => {
         if (client != webSocket && client.roomId === roomId) {
@@ -83,7 +84,7 @@ export function sendMessageToRoom(
     });
 }
 
-export function sendJSON(webSocket: WebSocket, message: Object) {
+export function sendJSON(webSocket: WebSocket, message: WebSocketMessage) {
     webSocket.send(JSON.stringify(message));
 }
 
