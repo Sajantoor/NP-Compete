@@ -104,7 +104,7 @@ export async function patchRoom(req: Request, res: Response) {
     res.json(updatedRoom).status(200);
 }
 
-export async function addRoomMember(roomUuid: string, userId: string): Promise<number> {
+export async function addRoomMember(roomUuid: string, userId: number): Promise<number> {
     const room = await RedisCache.getRoomByUuid(roomUuid);
     if (!room) return 0;
 
@@ -112,7 +112,7 @@ export async function addRoomMember(roomUuid: string, userId: string): Promise<n
     return await RedisCache.updateRoom(room);
 }
 
-export async function removeRoomMember(roomUuid: string, userId: string): Promise<number> {
+export async function removeRoomMember(roomUuid: string, userId: number): Promise<number> {
     const room = await RedisCache.getRoomByUuid(roomUuid);
     if (!room) return 0;
 

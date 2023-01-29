@@ -2,7 +2,7 @@ export interface Room {
     name: string;
     size: number;
     uuid: string;
-    owner?: string;
+    owner?: number;
     password?: string;
-    members: string[];
+    members: number[];
 }

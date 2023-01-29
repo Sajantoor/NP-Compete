@@ -2,12 +2,17 @@ import express, { Request } from "express";
 import { createServer } from 'http';
 import dotenv from "dotenv";
 import cors from "cors";
+import "reflect-metadata";
 dotenv.config();
 
-import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth, logout } from "./components/authentication";
+import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth, logout, getProfile } from "./components/authentication";
 import webSocketServer from "./components/websocket";
 import sessionParser from "./components/sessionParser";
 import { createRoom, getRoom, getRooms, patchRoom } from "./components/rooms";
+import { AppDataSource } from "./data-source";
+
+// Database connection 
+AppDataSource.initialize();
 
 const app = express();
 const port = 4000;
@@ -48,7 +53,7 @@ app.get(`${API_PREFIX}/`, (_, res) => {
     res.json({ "message": "Hello World!" });
 });
 
-app.post(`${API_PREFIX}/login`, (req, res) => initOAuthWithGithub(req, res));
+app.get(`${API_PREFIX}/login`, (req, res) => initOAuthWithGithub(req, res));
 app.get(`${API_PREFIX}/callback`, (req, res) => oAuthCallbackGithub(req, res));
 app.get(`${API_PREFIX}/rooms`, (_, res) => getRooms(res));
 app.get(`${API_PREFIX}/rooms/:uuid`, (req, res) => getRoom(req, res));
@@ -56,10 +61,7 @@ app.get(`${API_PREFIX}/rooms/:uuid`, (req, res) => getRoom(req, res));
 // Require authentication for the next endpoints...
 app.use(requireAuth);
 
-app.get(`${API_PREFIX}/profile`, (_, res) => {
-    res.json({ "message": "You are authenticated" });
-});
-
+app.get(`${API_PREFIX}/profile`, (req, res) => getProfile(req, res));
 app.post(`${API_PREFIX}/rooms`, (req, res) => createRoom(req, res));
 app.patch(`${API_PREFIX}/rooms/:uuid`, (req, res) => patchRoom(req, res));
 app.post(`${API_PREFIX}/logout`, (req) => logout(req));

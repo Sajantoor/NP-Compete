@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { NextFunction, Request, Response } from "express";
 import { badRequestError, internalServerError, unauthorizedError } from "../utilities/errors";
 import { RedisCache } from "./redis";
+import { createUser, getCurrentUser, getUserByUsername } from "./users";
 
 /**
  * Redirects to Github OAuth, inits OAuth process with a code.
@@ -83,9 +84,35 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
     if (userInfo.status != 200) {
         return internalServerError(res, "Failed to perform OAuth");
     }
+
+    // If this user exists in the database, then we can just log them in
+    // otherwise we need to create a new user in the database.
+    const userName = userInfo.data["login"];
+    const userExists = await getUserByUsername(userName);
+    let userId: number;
+
+    if (!userExists) {
+        const user = await createUser(userName);
+        userId = user.id;
+    } else {
+        userId = userExists.id;
+    }
+
     // set session
-    req.session.userId = userInfo.data["id"];
-    res.json(userInfo.data);
+    req.session.userId = userId;
+    res.json({ "user": userInfo.data });
+}
+
+export async function getProfile(req: Request, res: Response) {
+    const user = await getCurrentUser(req);
+    console.log(user);
+
+    if (!user) {
+        return unauthorizedError(res);
+    }
+
+    // TOOD: hide the user id from the client 
+    res.json({ "user": user });
 }
 
 
