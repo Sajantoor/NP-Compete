@@ -1,8 +1,9 @@
-import { WebSocket, WebSocketServer } from "ws";
+import { RawData, WebSocket, WebSocketServer } from "ws";
 import { IncomingMessage } from "http";
-import { addRoomMember, removeRoomMember, verifyUserCanJoinRoom } from "./rooms";
+import { addRoomMember, removeRoomMember, verifyUserCanJoinRoom } from "../middlewares/rooms";
 import { Request } from "express";
 import { WebSocketMessage } from "../types/WebSocketMessage";
+import { getUserById } from "./users";
 
 const webSocketServer = new WebSocketServer({ noServer: true });
 
@@ -28,34 +29,17 @@ async function onConnection(webSocket: WebSocket, req: IncomingMessage) {
     webSocket.userId = (req as Request).session.userId!;
 
     await addRoomMember(roomUuid, webSocket.userId);
-
-    sendMessageToRoom(
-        webSocketServer,
-        webSocket,
-        roomUuid,
-        { event: "userJoined", userId: webSocket.userId }
-    );
+    sendUserJoinEvent(webSocketServer, webSocket, roomUuid);
 
     // handle close event...
     webSocket.on("close", () => {
         removeRoomMember(roomUuid, webSocket.userId);
-
-        sendMessageToRoom(
-            webSocketServer,
-            webSocket,
-            roomUuid,
-            { event: "userLeft", userId: webSocket.userId }
-        );
+        sendUserLeftEvent(webSocketServer, webSocket, roomUuid)
     });
 
     // handle message event...
     webSocket.on("message", (data) => {
-        const message: WebSocketMessage = {
-            event: "message",
-            userId: webSocket.userId,
-            message: data.toString(),
-        }
-        sendMessageToRoom(webSocketServer, webSocket, roomUuid, message);
+        sendUserMessage(webSocketServer, webSocket, roomUuid, data);
     });
 
     // handle ping event...
@@ -71,21 +55,61 @@ webSocketServer.on("close", () => {
     clearInterval(heartBeatInterval);
 });
 
-export function sendMessageToRoom(
+function sendMessageToRoom(
     webSocketServer: WebSocketServer,
-    webSocket: WebSocket,
     roomId: string,
     message: WebSocketMessage
 ) {
     webSocketServer.clients.forEach((client) => {
-        if (client != webSocket && client.roomId === roomId) {
+        if (client.roomId === roomId) {
             sendJSON(client, message);
         }
     });
 }
 
-export function sendJSON(webSocket: WebSocket, message: WebSocketMessage) {
+function sendJSON(webSocket: WebSocket, message: WebSocketMessage) {
     webSocket.send(JSON.stringify(message));
+}
+
+export function sendError(webSocket: WebSocket, message: string) {
+    sendJSON(webSocket, { event: "error", message });
+}
+
+async function sendUserJoinEvent(webSocketServer: WebSocketServer, webSocket: WebSocket, roomId: string) {
+    const username = await getUsername(webSocket);
+    if (!username) return;
+
+    sendMessageToRoom(webSocketServer, roomId, { event: "userJoined", username: username });
+}
+
+async function sendUserLeftEvent(webSocketServer: WebSocketServer, webSocket: WebSocket, roomId: string) {
+    const username = await getUsername(webSocket);
+    if (!username) return;
+
+    sendMessageToRoom(webSocketServer, roomId, { event: "userLeft", username: username });
+}
+
+async function sendUserMessage(webSocketServer: WebSocketServer, webSocket: WebSocket, roomId: string, data: RawData) {
+    const username = await getUsername(webSocket);
+    if (!username) return;
+
+    const message: WebSocketMessage = {
+        event: "message",
+        username: username,
+        message: data.toString(),
+    }
+
+    sendMessageToRoom(webSocketServer, roomId, message);
+}
+
+async function getUsername(webSocket: WebSocket): Promise<string | null> {
+    const user = await getUserById(webSocket.userId);
+    if (!user) {
+        sendError(webSocket, "User not found");
+        return null;
+    }
+    const username = user.username;
+    return username;
 }
 
 export default webSocketServer;

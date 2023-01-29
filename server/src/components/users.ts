@@ -21,3 +21,7 @@ export async function getCurrentUser(req: Request): Promise<User | null> {
 export async function getUserByUsername(username: string): Promise<User | null> {
     return await User.findOne({ where: { username } });
 }
+
+export async function getUserById(id: number): Promise<User | null> {
+    return await User.findOne({ where: { id } });
+}

@@ -5,10 +5,10 @@ import cors from "cors";
 import "reflect-metadata";
 dotenv.config();
 
-import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth, logout, getProfile } from "./components/authentication";
+import { oAuthCallbackGithub, initOAuthWithGithub, requireAuth, logout, getProfile } from "./middlewares/authentication";
 import webSocketServer from "./components/websocket";
 import sessionParser from "./components/sessionParser";
-import { createRoom, getRoom, getRooms, patchRoom } from "./components/rooms";
+import { createRoom, getRoom, getRooms, patchRoom } from "./middlewares/rooms";
 import { AppDataSource } from "./data-source";
 
 // Database connection 

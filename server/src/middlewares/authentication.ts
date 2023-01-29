@@ -2,8 +2,8 @@ import axios from "axios";
 import crypto from "crypto";
 import { NextFunction, Request, Response } from "express";
 import { badRequestError, internalServerError, unauthorizedError } from "../utilities/errors";
-import { RedisCache } from "./redis";
-import { createUser, getCurrentUser, getUserByUsername } from "./users";
+import { RedisCache } from "../components/redis";
+import { createUser, getCurrentUser, getUserByUsername } from "../components/users";
 
 /**
  * Redirects to Github OAuth, inits OAuth process with a code.

@@ -1,5 +1,5 @@
 export interface WebSocketMessage {
     event: "userJoined" | "userLeft" | "message" | "error";
-    userId?: number;
+    username?: string;
     message?: string;
 }

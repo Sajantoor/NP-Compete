@@ -4,9 +4,9 @@ import agron2 from "argon2";
 import { badRequestError, internalServerError } from "../utilities/errors";
 import { IncomingMessage } from "http";
 import { WebSocket } from "ws";
-import { RedisCache } from "./redis";
+import { RedisCache } from "../components/redis";
 import { Room } from "../types/Room";
-import { sendJSON } from "./websocket";
+import { sendError } from "../components/websocket";
 
 /**
  * 
@@ -141,13 +141,13 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
 
     // if the user is already in a room, don't let them join another room
     if (webSocket.roomId) {
-        sendJSON(webSocket, { event: "error", message: "You are already in a room" });
+        sendError(webSocket, "You are already in a room");
         webSocket.close();
         return false;
     }
 
     if (!roomUuid) {
-        sendJSON(webSocket, { event: "error", message: "Room uuid is required" });
+        sendError(webSocket, "Room uuid is required");
         webSocket.close();
         return false;
     }
@@ -155,7 +155,7 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
     const room = await RedisCache.getRoomByUuid(roomUuid);
 
     if (!room) {
-        sendJSON(webSocket, { event: "error", message: "Room does not exist" })
+        sendError(webSocket, "Room does not exist");
         webSocket.close();
         return false;
     }
@@ -163,7 +163,7 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
     if (room.password) {
         const hashedPassword = req.headers["password"];
         if (!hashedPassword || typeof hashedPassword !== "string") {
-            sendJSON(webSocket, { event: "error", message: "Password is required to join this room" });
+            sendError(webSocket, "Password is required to join this room");
             webSocket.close();
             return false;
         }
@@ -171,14 +171,14 @@ export async function verifyUserCanJoinRoom(webSocket: WebSocket, req: IncomingM
         const isCorrectPassword = await agron2.verify(room.password, hashedPassword);
 
         if (!isCorrectPassword) {
-            sendJSON(webSocket, { event: "error", message: "Incorrect password" });
+            sendError(webSocket, "Incorrect password");
             webSocket.close();
             return false;
         }
     }
 
     if (room.members.length >= room.size) {
-        sendJSON(webSocket, { event: "error", message: "Room is full" })
+        sendError(webSocket, "Room is full")
         webSocket.close();
         return false;
     }
