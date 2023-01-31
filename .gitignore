@@ -48,3 +48,6 @@ yarn.lock
 *.tsbuildinfo
 next-env.d.ts
 /build
+
+# Redis dumps 
+dump.rdb
