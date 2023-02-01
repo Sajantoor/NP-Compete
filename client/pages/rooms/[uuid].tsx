@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 interface WebSocketMessage {
     event: string, // userJoined, userLeft, message, error 
     message?: string // Only appears on error and message events
-    userId?: string // Only appears on userJoin, userLeft and message events
+    username?: string // Only appears on userJoin, userLeft and message events
 }
 
 
@@ -55,16 +55,16 @@ export default function Room() {
         switch (message.event) {
 
             case "userJoined":
-                newMessage = `User ${message.userId} joined`;
+                newMessage = `User ${message.username} joined`;
                 break;
             case "userLeft":
-                newMessage = `User ${message.userId} left`;
+                newMessage = `User ${message.username} left`;
                 break;
             case "error":
                 console.error("Error: ", message.message);
                 break;
             case "message":
-                newMessage = `User ${message.userId}: ${message.message}`;
+                newMessage = `User ${message.username}: ${message.message}`;
                 break;
             default:
                 console.error("Unknown event: ", message.event);

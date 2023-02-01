@@ -21,6 +21,7 @@ export default function Logout() {
 async function makeRequest() {
     const requestURL = SERVER_URL + "/api/v1/logout";
     const response = await fetch(requestURL, {
+        "method": "POST",
         "credentials": "include",
         "mode": "cors",
     });

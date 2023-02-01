@@ -53,7 +53,7 @@ app.get(`${API_PREFIX}/`, (_, res) => {
     res.json({ "message": "Hello World!" });
 });
 
-app.get(`${API_PREFIX}/login`, (req, res) => initOAuthWithGithub(req, res));
+app.post(`${API_PREFIX}/login`, (req, res) => initOAuthWithGithub(req, res));
 app.get(`${API_PREFIX}/callback`, (req, res) => oAuthCallbackGithub(req, res));
 app.get(`${API_PREFIX}/rooms`, (_, res) => getRooms(res));
 app.get(`${API_PREFIX}/rooms/:uuid`, (req, res) => getRoom(req, res));
