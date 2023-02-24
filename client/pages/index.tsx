@@ -1,9 +1,11 @@
+import { Text } from "@chakra-ui/react";
+import NavBar from "../components/navBar";
+
 export default function Home() {
   return (
     <>
-      <div>
-        <h1> Hello World </h1>
-      </div>
+      <NavBar />
+      <Text fontSize="4xl">Welcome!</Text>
     </>
   )
 }
