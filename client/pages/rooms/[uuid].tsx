@@ -1,5 +1,5 @@
 import { Button, Flex, Heading, Input, Select, Stack, Tab, TabList, Tabs, Text } from "@chakra-ui/react";
-import Editor from "@monaco-editor/react";
+import Editor, { useMonaco } from "@monaco-editor/react";
 import Router from "next/router"
 import { useEffect, useRef, useState } from "react";
 import NavBar from "../../components/navBar";
@@ -15,7 +15,9 @@ export default function Room() {
     const inputRef = useRef<HTMLInputElement>(null);
     const [messages, setMessages] = useState<string[]>(["Welcome to the room!", "This is a test message!"]);
     const [websocket, setWebSocket] = useState<WebSocket | null>(null);
-    const [currentLanguage, setCurrentLanguage] = useState<string>("JavaScript");
+    const [currentLanguage, setCurrentLanguage] = useState<string>("javascript");
+    const [currentCode, setCurrentCode] = useState<string>("");
+    const editor = useMonaco();
 
     useEffect(() => {
         const { uuid } = Router.query;
@@ -139,16 +141,24 @@ export default function Room() {
                                 theme="vs-dark"
                                 width="100%"
                                 height="83.5vh"
-                                defaultLanguage="javascript"
+                                language={currentLanguage}
                                 defaultValue=""
                             />
 
-                            <Flex direction="row" justifyContent="flex-end" mt={2} padding={2}>
-                                <Select size='sm' placeholder={currentLanguage} >
-                                    <option value='option2'>Java</option>
-                                    <option value='option3'>C++</option>
+                            <Flex direction="row" justifyContent="flex-end" mt={2} padding={2} onChange={
+                                // TODO: Figure out how to get the value of the select
+                                (e) => {
+                                    console.log(e.target.value);
+                                    setCurrentLanguage(e.target.value);
+                                }
+                            }>
+                                <Select size="sm" placeholder={currentLanguage}>
+                                    <option value="javascript">JavaScript</option>
+                                    <option value="typescript">TypeScript</option>
+                                    <option value="java">Java</option>
+                                    <option value="cpp">C++</option>
                                 </Select>
-                                <Button size='sm' ml={2}> Submit </Button>
+                                <Button size="sm" ml={2}> Submit </Button>
 
                             </Flex>
                         </Flex>
@@ -173,8 +183,7 @@ export default function Room() {
                         </Flex>
                     </Flex>
                 </Flex>
-
-            </Flex >
+            </Flex>
         </>
     )
 }
