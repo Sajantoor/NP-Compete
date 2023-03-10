@@ -1,5 +1,6 @@
 import { Button, Flex, Heading, Input, Select, Stack, Tab, TabList, Tabs, Text } from "@chakra-ui/react";
 import Editor, { useMonaco } from "@monaco-editor/react";
+import monaco from 'monaco-editor';
 import Router from "next/router"
 import { useEffect, useRef, useState } from "react";
 import NavBar from "../../components/navBar";
@@ -16,8 +17,16 @@ export default function Room() {
     const [messages, setMessages] = useState<string[]>(["Welcome to the room!", "This is a test message!"]);
     const [websocket, setWebSocket] = useState<WebSocket | null>(null);
     const [currentLanguage, setCurrentLanguage] = useState<string>("javascript");
+    // TOOD: not sure if this needs to use state or not...
     const [currentCode, setCurrentCode] = useState<string>("");
+    let hasCodeChanged = false;
     const editor = useMonaco();
+
+    useEffect(() => {
+        setInterval(() => {
+            sendCurrentCode();
+        }, 2 * 1000);
+    });
 
     useEffect(() => {
         const { uuid } = Router.query;
@@ -59,7 +68,6 @@ export default function Room() {
 
         let newMessage: string | undefined;
         switch (message.event) {
-
             case "userJoined":
                 newMessage = `User ${message.username} joined`;
                 break;
@@ -71,6 +79,9 @@ export default function Room() {
                 break;
             case "message":
                 newMessage = `User ${message.username}: ${message.message}`;
+                break;
+            case "code":
+                // TODO: Update the code in the editor
                 break;
             default:
                 console.error("Unknown event: ", message.event);
@@ -95,6 +106,32 @@ export default function Room() {
         }
 
         websocket.send(message);
+    }
+
+    function sendCurrentCode() {
+        // only send code if it has changed 
+        if (!hasCodeChanged) return;
+
+        hasCodeChanged = false;
+
+        if (!websocket) {
+            console.log("No websocket connection");
+            return;
+        }
+
+        const message = {
+            event: "code",
+            code: currentCode,
+            language: currentLanguage
+        }
+
+        websocket.send(JSON.stringify(message));
+    }
+
+    function handleEditorChange(value: string | undefined, event: monaco.editor.IModelContentChangedEvent) {
+        if (!value) return;
+        hasCodeChanged = true;
+        setCurrentCode(value);
     }
 
     return (
@@ -143,6 +180,7 @@ export default function Room() {
                                 height="83.5vh"
                                 language={currentLanguage}
                                 defaultValue=""
+                                onChange={handleEditorChange}
                             />
 
                             <Flex direction="row" justifyContent="flex-end" mt={2} padding={2} onChange={
