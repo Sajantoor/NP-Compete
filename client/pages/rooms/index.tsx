@@ -4,7 +4,7 @@ import Router from "next/router";
 import Link from "next/link";
 import { useState } from "react";
 import { Room } from "../../types/Room";
-import { Button, Flex, Heading, Input, Stack } from "@chakra-ui/react";
+import { Button, Flex, Heading, Input, Stack, Text } from "@chakra-ui/react";
 import NavBar from "../../components/navBar";
 
 interface RoomInput {
@@ -96,7 +96,35 @@ async function fetchRooms() {
 }
 
 export const getStaticProps: GetStaticProps = async () => {
-    const rooms = await fetchRooms();
+    // const rooms = await fetchRooms();
+    const rooms = [
+        {
+            "uuid": "1",
+            "name": "Room 1",
+            "owner": "1",
+            "size": 10,
+            "members": [
+                "1",
+                "2",
+                "3",
+            ],
+            "password": null,
+        },
+        {
+            "uuid": "1",
+            "name": "Room 1",
+            "owner": "1",
+            "size": 10,
+            "members": [
+                "1",
+                "2",
+                "3",
+            ],
+            "password": null,
+        },
+    ]
+
+    console.log(rooms);
 
     return {
         props: {

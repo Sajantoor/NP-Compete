@@ -4,13 +4,21 @@ import monaco from 'monaco-editor';
 import Router from "next/router"
 import { useEffect, useRef, useState } from "react";
 import NavBar from "../../components/navBar";
+import { SERVER_URL } from "../../constants";
 
 interface WebSocketMessage {
     event: string, // userJoined, userLeft, message, error 
     message?: string // Only appears on error and message events
     username?: string // Only appears on userJoin, userLeft and message events
+    code?: string // Only appears on code events
+    language?: string // Only appears on code events
 }
 
+interface UserData {
+    username: string,
+    code: string,
+    language: string,
+}
 
 export default function Room() {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -19,6 +27,25 @@ export default function Room() {
     const [currentLanguage, setCurrentLanguage] = useState<string>("javascript");
     // TOOD: not sure if this needs to use state or not...
     const [currentCode, setCurrentCode] = useState<string>("");
+
+    // TODO: This might be inefficent as it will cause many state changes
+    const [users, setUsers] = useState<UserData[]>(
+        [
+            {
+                username: "test",
+                code: "console.log('hello world')",
+                language: "javascript",
+            },
+            {
+                username: "test2",
+                code: "console.log('hello world 2222222')",
+                language: "javascript",
+            },
+        ]
+    );
+
+    const [currentlyViewingUser, setCurrentlyViewingUser] = useState<string | null>(null);
+
     let hasCodeChanged = false;
     const editor = useMonaco();
 
@@ -28,39 +55,58 @@ export default function Room() {
         }, 2 * 1000);
     });
 
-    useEffect(() => {
-        const { uuid } = Router.query;
-        if (!uuid) {
-            return;
-        }
+    // useEffect(() => {
+    //     const { uuid } = Router.query;
+    //     if (!uuid) {
+    //         return;
+    //     }
 
-        if (!websocket) {
-            // create new websocket connection
-            setWebSocket(new WebSocket(`ws://localhost:4000/${uuid}`));
-        }
+    //     // make http request to get the room info 
+    //     const roomData = fetch(`${SERVER_URL}/api/v1/rooms/${uuid}`, {
+    //         "method": "GET",
+    //         "credentials": "include",
+    //         "mode": "cors",
+    //     }).then(response => response.json());
 
-        if (!websocket) {
-            return;
-        }
+    //     roomData.then(data => {
+    //         console.log(data);
+    //         setUsers(data.users);
+    //     });
+    // }, []);
 
-        // websocket event handlers
-        websocket.onopen = () => {
-            console.log("connected");
-        }
+    // useEffect(() => {
+    //     const { uuid } = Router.query;
+    //     if (!uuid) {
+    //         return;
+    //     }
 
-        websocket.onmessage = (event) => {
-            processMessage(event.data);
-        }
+    //     if (!websocket) {
+    //         // create new websocket connection
+    //         setWebSocket(new WebSocket(`ws://localhost:4000/${uuid}`));
+    //     }
 
-        websocket.onclose = () => {
-            Router.push("/rooms");
-        }
+    //     if (!websocket) {
+    //         return;
+    //     }
 
-        // On component unmount, close websocket
-        return () => {
-            websocket.close();
-        }
-    }, [websocket]);
+    //     // websocket event handlers
+    //     websocket.onopen = () => {
+    //         console.log("connected");
+    //     }
+
+    //     websocket.onmessage = (event) => {
+    //         processMessage(event.data);
+    //     }
+
+    //     websocket.onclose = () => {
+    //         Router.push("/rooms");
+    //     }
+
+    //     // On component unmount, close websocket
+    //     return () => {
+    //         websocket.close();
+    //     }
+    // }, [websocket]);
 
     function processMessage(rawMessage: string) {
         const message: WebSocketMessage = JSON.parse(rawMessage);
@@ -70,9 +116,11 @@ export default function Room() {
         switch (message.event) {
             case "userJoined":
                 newMessage = `User ${message.username} joined`;
+                setUsers(users => ([...users, { username: message.username!, code: "", language: "javascript" }]));
                 break;
             case "userLeft":
                 newMessage = `User ${message.username} left`;
+                setUsers(users => (users.filter(user => user.username !== message.username)));
                 break;
             case "error":
                 console.error("Error: ", message.message);
@@ -82,6 +130,17 @@ export default function Room() {
                 break;
             case "code":
                 // TODO: Update the code in the editor
+                setUsers(users => (users.map(user => {
+                    if (user.username === message.username) {
+                        return {
+                            ...user,
+                            code: message.code!,
+                            language: message.language!,
+                        }
+                    }
+                    return user;
+                })));
+
                 break;
             default:
                 console.error("Unknown event: ", message.event);
@@ -170,8 +229,13 @@ export default function Room() {
                         <Flex bg="gray.800" p={5} direction="column" width="70%" padding={0}>
                             <Tabs variant='soft-rounded' mb={2}>
                                 <TabList>
-                                    <Tab>User 1</Tab>
-                                    <Tab>User 2</Tab>
+                                    {
+                                        users.map((user, index) => {
+                                            return <Tab key={index} onClick={() => {
+                                                setCurrentlyViewingUser(user.username);
+                                            }}> {user.username} </Tab>
+                                        })
+                                    }
                                 </TabList>
                             </Tabs>
                             <Editor
@@ -197,7 +261,6 @@ export default function Room() {
                                     <option value="cpp">C++</option>
                                 </Select>
                                 <Button size="sm" ml={2}> Submit </Button>
-
                             </Flex>
                         </Flex>
 
