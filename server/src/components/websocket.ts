@@ -93,6 +93,26 @@ async function sendUserMessage(webSocketServer: WebSocketServer, webSocket: WebS
     const username = await getUsername(webSocket);
     if (!username) return;
 
+    // Check the type of message, if it's a code message handle it differently
+    // The code message will be a stringified JSON object
+    try {
+        const message = JSON.parse(data.toString());
+        if (message.event === "code") {
+            const codeMessage: WebSocketMessage = {
+                event: "code",
+                username: username,
+                code: message.code,
+                language: message.language,
+            }
+
+            sendMessageToRoom(webSocketServer, roomId, codeMessage);
+            console.log(codeMessage);
+            return;
+        }
+    } catch (error) {
+        // Do nothing
+    }
+
     const message: WebSocketMessage = {
         event: "message",
         username: username,

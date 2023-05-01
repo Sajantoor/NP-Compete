@@ -96,33 +96,7 @@ async function fetchRooms() {
 }
 
 export const getStaticProps: GetStaticProps = async () => {
-    // const rooms = await fetchRooms();
-    const rooms = [
-        {
-            "uuid": "1",
-            "name": "Room 1",
-            "owner": "1",
-            "size": 10,
-            "members": [
-                "1",
-                "2",
-                "3",
-            ],
-            "password": null,
-        },
-        {
-            "uuid": "1",
-            "name": "Room 1",
-            "owner": "1",
-            "size": 10,
-            "members": [
-                "1",
-                "2",
-                "3",
-            ],
-            "password": null,
-        },
-    ]
+    const rooms = await fetchRooms();
 
     console.log(rooms);
 
