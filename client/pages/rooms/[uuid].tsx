@@ -10,8 +10,8 @@ interface WebSocketMessage {
     event: string, // userJoined, userLeft, message, error 
     message?: string // Only appears on error and message events
     username?: string // Only appears on userJoin, userLeft and message events
-    code?: string // Only appears on code events
-    language?: string // Only appears on code events
+    code?: string // Only appears on code update events
+    language?: string // Only appears on code update events
 }
 
 interface UserData {
@@ -22,28 +22,15 @@ interface UserData {
 
 export default function Room() {
     const inputRef = useRef<HTMLInputElement>(null);
-    const [messages, setMessages] = useState<string[]>(["Welcome to the room!", "This is a test message!"]);
+    const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+
+    const [messages, setMessages] = useState<string[]>(["Welcome to the room!"]);
     const [websocket, setWebSocket] = useState<WebSocket | null>(null);
     const [currentLanguage, setCurrentLanguage] = useState<string>("javascript");
-    // TOOD: not sure if this needs to use state or not...
     const [currentCode, setCurrentCode] = useState<string>("");
 
     // TODO: This might be inefficent as it will cause many state changes
-    const [users, setUsers] = useState<UserData[]>(
-        [
-            {
-                username: "test",
-                code: "console.log('hello world')",
-                language: "javascript",
-            },
-            {
-                username: "test2",
-                code: "console.log('hello world 2222222')",
-                language: "javascript",
-            },
-        ]
-    );
-
+    const [users, setUsers] = useState<UserData[]>([]);
     const [currentlyViewingUser, setCurrentlyViewingUser] = useState<string | null>(null);
 
     let hasCodeChanged = false;
@@ -55,64 +42,66 @@ export default function Room() {
         }, 2 * 1000);
     });
 
-    // useEffect(() => {
-    //     const { uuid } = Router.query;
-    //     if (!uuid) {
-    //         return;
-    //     }
+    useEffect(() => {
+        const { uuid } = Router.query;
+        if (!uuid) {
+            return;
+        }
 
-    //     // make http request to get the room info 
-    //     const roomData = fetch(`${SERVER_URL}/api/v1/rooms/${uuid}`, {
-    //         "method": "GET",
-    //         "credentials": "include",
-    //         "mode": "cors",
-    //     }).then(response => response.json());
+        // make http request to get the room info 
+        const roomData = fetch(`${SERVER_URL}/api/v1/rooms/${uuid}`, {
+            "method": "GET",
+            "credentials": "include",
+            "mode": "cors",
+        }).then(response => response.json());
+        console.log(roomData);
 
-    //     roomData.then(data => {
-    //         console.log(data);
-    //         setUsers(data.users);
-    //     });
-    // }, []);
+        roomData.then(data => {
+            console.log(data);
+            setUsers(data.members.map((member: string) => ({
+                username: member,
+                code: "",
+                language: "javascript",
+            })));
+        });
+    }, []);
 
-    // useEffect(() => {
-    //     const { uuid } = Router.query;
-    //     if (!uuid) {
-    //         return;
-    //     }
+    useEffect(() => {
+        const { uuid } = Router.query;
+        if (!uuid) {
+            return;
+        }
 
-    //     if (!websocket) {
-    //         // create new websocket connection
-    //         setWebSocket(new WebSocket(`ws://localhost:4000/${uuid}`));
-    //     }
+        if (!websocket) {
+            setWebSocket(new WebSocket(`ws://localhost:4000/${uuid}`));
+        }
 
-    //     if (!websocket) {
-    //         return;
-    //     }
+        if (!websocket) {
+            return;
+        }
 
-    //     // websocket event handlers
-    //     websocket.onopen = () => {
-    //         console.log("connected");
-    //     }
+        websocket.onopen = () => {
+            console.log("connected");
+        }
 
-    //     websocket.onmessage = (event) => {
-    //         processMessage(event.data);
-    //     }
+        websocket.onmessage = (event) => {
+            processMessage(event.data);
+        }
 
-    //     websocket.onclose = () => {
-    //         Router.push("/rooms");
-    //     }
+        websocket.onclose = () => {
+            Router.push("/rooms");
+        }
 
-    //     // On component unmount, close websocket
-    //     return () => {
-    //         websocket.close();
-    //     }
-    // }, [websocket]);
+        // On component unmount, close websocket
+        return () => {
+            websocket.close();
+        }
+    }, [websocket]);
 
     function processMessage(rawMessage: string) {
         const message: WebSocketMessage = JSON.parse(rawMessage);
-        console.log(message);
 
-        let newMessage: string | undefined;
+        let newMessage: string | undefined | null;
         switch (message.event) {
             case "userJoined":
                 newMessage = `User ${message.username} joined`;
@@ -129,7 +118,6 @@ export default function Room() {
                 newMessage = `User ${message.username}: ${message.message}`;
                 break;
             case "code":
-                // TODO: Update the code in the editor
                 setUsers(users => (users.map(user => {
                     if (user.username === message.username) {
                         return {
@@ -141,14 +129,14 @@ export default function Room() {
                     return user;
                 })));
 
+                newMessage = null;
                 break;
             default:
                 console.error("Unknown event: ", message.event);
                 break;
         }
 
-        if (newMessage) {
-            // TODO: I'm not sure why this has to be a function
+        if (newMessage && message.event !== "code") {
             setMessages(messages => ([...messages, newMessage!]));
         }
     }
@@ -168,7 +156,6 @@ export default function Room() {
     }
 
     function sendCurrentCode() {
-        // only send code if it has changed 
         if (!hasCodeChanged) return;
 
         hasCodeChanged = false;
@@ -191,6 +178,25 @@ export default function Room() {
         if (!value) return;
         hasCodeChanged = true;
         setCurrentCode(value);
+    }
+
+    function switchUser(userStr: string) {
+        const user = users.find(user => user.username === userStr);
+        if (!user) return;
+
+        setCurrentlyViewingUser(userStr);
+        setCurrentCode(user.code);
+        setCurrentLanguage(user.language);
+
+        // TODO: this is a hacky way to make the editor read only
+        // editorRef.current?.updateOptions({
+        //     readOnly: user.username !== "Me"
+        // });
+    }
+
+    // @ts-ignore for some reason monaco is not being recognized
+    function handleEditorMount(editor: monaco.editor.IStandaloneCodeEditor, monaco: typeof monaco) {
+        editorRef.current = editor;
     }
 
     return (
@@ -232,7 +238,7 @@ export default function Room() {
                                     {
                                         users.map((user, index) => {
                                             return <Tab key={index} onClick={() => {
-                                                setCurrentlyViewingUser(user.username);
+                                                switchUser(user.username);
                                             }}> {user.username} </Tab>
                                         })
                                     }
@@ -245,6 +251,8 @@ export default function Room() {
                                 language={currentLanguage}
                                 defaultValue=""
                                 onChange={handleEditorChange}
+                                value={currentCode}
+                                onMount={handleEditorMount}
                             />
 
                             <Flex direction="row" justifyContent="flex-end" mt={2} padding={2} onChange={
