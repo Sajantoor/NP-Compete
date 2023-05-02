@@ -35,7 +35,7 @@ server.on("upgrade", async function upgrade(request, socket, head) {
     sessionParser(request, {}, () => {
         const req = request as Request;
 
-        if (!req.session.userId) {
+        if (!req.session.username) {
             socket.write("401 Unauthorized.\n");
             socket.destroy();
             return;

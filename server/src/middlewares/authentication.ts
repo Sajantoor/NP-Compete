@@ -89,17 +89,17 @@ export async function oAuthCallbackGithub(req: Request, res: Response) {
     // otherwise we need to create a new user in the database.
     const userName = userInfo.data["login"];
     const userExists = await getUserByUsername(userName);
-    let userId: number;
+    let username: string;
 
     if (!userExists) {
         const user = await createUser(userName);
-        userId = user.id;
+        username = user.username;
     } else {
-        userId = userExists.id;
+        username = userExists.username;
     }
 
     // set session
-    req.session.userId = userId;
+    req.session.username = username;
     res.json({ "user": userInfo.data });
 }
 
@@ -132,7 +132,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
  * @returns Returns true if the user is logged in, false otherwise.
  */
 function checkIfAuth(req: Request): boolean {
-    return req.session.userId !== undefined;
+    return req.session.username !== undefined;
 }
 
 export function logout(req: Request) {

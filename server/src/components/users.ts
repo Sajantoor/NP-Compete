@@ -15,13 +15,13 @@ export async function createUser(username: string): Promise<User> {
 }
 
 export async function getCurrentUser(req: Request): Promise<User | null> {
-    return await User.findOne({ where: { id: req.session.userId } });
+    return await User.findOne({ where: { username: req.session.username } });
 }
 
 export async function getUserByUsername(username: string): Promise<User | null> {
     return await User.findOne({ where: { username } });
 }
 
-export async function getUserById(id: number): Promise<User | null> {
-    return await User.findOne({ where: { id } });
+export async function getUserById(username: string): Promise<User | null> {
+    return await User.findOne({ where: { username: username } });
 }
