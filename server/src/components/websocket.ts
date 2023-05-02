@@ -11,7 +11,7 @@ function heartBeat() {
     webSocketServer.clients.forEach(async (webSocket: WebSocket) => {
         if (!webSocket.isAlive) {
             console.log("Found a dead websocket, terminating...");
-            await removeRoomMember(webSocket.roomId, webSocket.userId);
+            await removeRoomMember(webSocket.roomId, webSocket.username);
             return webSocket.terminate();
         }
 
@@ -26,14 +26,14 @@ async function onConnection(webSocket: WebSocket, req: IncomingMessage) {
     const roomUuid = req.url?.split("/")[1] as string;
     webSocket.roomId = roomUuid;
     webSocket.isAlive = true;
-    webSocket.userId = (req as Request).session.userId!;
+    webSocket.username = (req as Request).session.username!;
 
-    await addRoomMember(roomUuid, webSocket.userId);
+    await addRoomMember(roomUuid, webSocket.username);
     sendUserJoinEvent(webSocketServer, webSocket, roomUuid);
 
     // handle close event...
     webSocket.on("close", () => {
-        removeRoomMember(roomUuid, webSocket.userId);
+        removeRoomMember(roomUuid, webSocket.username);
         sendUserLeftEvent(webSocketServer, webSocket, roomUuid)
     });
 
@@ -67,6 +67,20 @@ function sendMessageToRoom(
     });
 }
 
+function sendMessageToRoomExcept(
+    webSocketServer: WebSocketServer,
+    roomId: string,
+    message: WebSocketMessage,
+    webSocket: WebSocket
+) {
+    webSocketServer.clients.forEach((client) => {
+        if (client.roomId === roomId && client !== webSocket) {
+            sendJSON(client, message);
+        }
+    });
+}
+
+
 function sendJSON(webSocket: WebSocket, message: WebSocketMessage) {
     webSocket.send(JSON.stringify(message));
 }
@@ -79,7 +93,7 @@ async function sendUserJoinEvent(webSocketServer: WebSocketServer, webSocket: We
     const username = await getUsername(webSocket);
     if (!username) return;
 
-    sendMessageToRoom(webSocketServer, roomId, { event: "userJoined", username: username });
+    sendMessageToRoomExcept(webSocketServer, roomId, { event: "userJoined", username: username }, webSocket);
 }
 
 async function sendUserLeftEvent(webSocketServer: WebSocketServer, webSocket: WebSocket, roomId: string) {
@@ -105,8 +119,8 @@ async function sendUserMessage(webSocketServer: WebSocketServer, webSocket: WebS
                 language: message.language,
             }
 
-            sendMessageToRoom(webSocketServer, roomId, codeMessage);
-            console.log(codeMessage);
+            // Send the code message to everyone except the sender
+            sendMessageToRoomExcept(webSocketServer, roomId, codeMessage, webSocket);
             return;
         }
     } catch (error) {
@@ -123,7 +137,7 @@ async function sendUserMessage(webSocketServer: WebSocketServer, webSocket: WebS
 }
 
 async function getUsername(webSocket: WebSocket): Promise<string | null> {
-    const user = await getUserById(webSocket.userId);
+    const user = await getUserById(webSocket.username);
     if (!user) {
         sendError(webSocket, "User not found");
         return null;

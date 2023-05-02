@@ -51,7 +51,7 @@ export async function createRoom(req: Request, res: Response) {
     }
 
     const uuid = crypto.randomUUID();
-    room = { ...room, owner: req.session.userId, uuid: uuid, members: [] };
+    room = { ...room, owner: req.session.username, uuid: uuid, members: [] };
 
     if (room.password) {
         const hashedPassword = await agron2.hash(room.password);
@@ -80,7 +80,7 @@ export async function patchRoom(req: Request, res: Response) {
         return badRequestError(res, "Room does not exist");
     }
 
-    if (room.owner !== req.session.userId) {
+    if (room.owner !== req.session.username) {
         return badRequestError(res, "You are not the owner of this room");
     }
 
@@ -104,15 +104,15 @@ export async function patchRoom(req: Request, res: Response) {
     res.json(updatedRoom).status(200);
 }
 
-export async function addRoomMember(roomUuid: string, userId: number): Promise<number> {
+export async function addRoomMember(roomUuid: string, username: string): Promise<number> {
     const room = await RedisCache.getRoomByUuid(roomUuid);
     if (!room) return 0;
 
-    room.members.push(userId);
+    room.members.push(username);
     return await RedisCache.updateRoom(room);
 }
 
-export async function removeRoomMember(roomUuid: string, userId: number): Promise<number> {
+export async function removeRoomMember(roomUuid: string, username: string): Promise<number> {
     const room = await RedisCache.getRoomByUuid(roomUuid);
     if (!room) return 0;
 
@@ -121,7 +121,7 @@ export async function removeRoomMember(roomUuid: string, userId: number): Promis
         return await RedisCache.removeRoomByUuid(roomUuid);
     }
 
-    room.members = room.members.filter(member => member !== userId);
+    room.members = room.members.filter(member => member !== username);
     return await RedisCache.updateRoom(room);
 }
 

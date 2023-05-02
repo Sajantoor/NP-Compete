@@ -1,10 +1,13 @@
 import { Button, Flex, Heading, Input, Select, Stack, Tab, TabList, Tabs, Text } from "@chakra-ui/react";
-import Editor, { useMonaco } from "@monaco-editor/react";
+import Editor from "@monaco-editor/react";
 import monaco from 'monaco-editor';
 import Router from "next/router"
 import { useEffect, useRef, useState } from "react";
 import NavBar from "../../components/navBar";
-import { SERVER_URL } from "../../constants";
+import { SERVER_URL, WEBSOCKET_URL } from "../../constants";
+
+const DEFAULT_LANGUAGE = "javascript";
+const DEFAULT_CODE = "";
 
 interface WebSocketMessage {
     event: string, // userJoined, userLeft, message, error 
@@ -20,28 +23,40 @@ interface UserData {
     language: string,
 }
 
+interface EditorState {
+    code: string,
+    language: string,
+    currentlyViewingUser: string,
+}
+
 export default function Room() {
     const inputRef = useRef<HTMLInputElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
+    const [roomName, setRoomName] = useState<string>("");
     const [messages, setMessages] = useState<string[]>(["Welcome to the room!"]);
     const [websocket, setWebSocket] = useState<WebSocket | null>(null);
-    const [currentLanguage, setCurrentLanguage] = useState<string>("javascript");
-    const [currentCode, setCurrentCode] = useState<string>("");
+    const [editorState, setEditorState] = useState<EditorState>({
+        code: DEFAULT_CODE,
+        language: DEFAULT_LANGUAGE,
+        currentlyViewingUser: "",
+    });
 
-    // TODO: This might be inefficent as it will cause many state changes
+
+    // TODO: This might be inefficent as it will cause many state changes, might be better not to use state for this
     const [users, setUsers] = useState<UserData[]>([]);
-    const [currentlyViewingUser, setCurrentlyViewingUser] = useState<string | null>(null);
 
     let hasCodeChanged = false;
-    const editor = useMonaco();
 
     useEffect(() => {
         setInterval(() => {
             sendCurrentCode();
-        }, 2 * 1000);
+        }, 1 * 1000);
     });
 
+    /**
+     * Get the room info from the server and update the user state with the members
+     */
     useEffect(() => {
         const { uuid } = Router.query;
         if (!uuid) {
@@ -54,50 +69,85 @@ export default function Room() {
             "credentials": "include",
             "mode": "cors",
         }).then(response => response.json());
-        console.log(roomData);
 
-        roomData.then(data => {
-            console.log(data);
-            setUsers(data.members.map((member: string) => ({
-                username: member,
-                code: "",
-                language: "javascript",
-            })));
+
+        // Get the user's username from the server 
+        const userData = fetch(`${SERVER_URL}/api/v1/profile`, {
+            "method": "GET",
+            "credentials": "include",
+            "mode": "cors",
+        }).then(response => response.json());
+
+
+        Promise.all([roomData, userData]).then(([roomData, userData]) => {
+            const username = userData.user.username;
+            const updatedUsers: UserData[] = [];
+
+            updatedUsers.push({
+                username: username,
+                code: DEFAULT_CODE,
+                language: DEFAULT_LANGUAGE,
+            });
+
+            // check if valid user before pushing, ie not an empty list item
+            if (roomData.members.length > 0) {
+                for (const member of roomData.members) {
+                    updatedUsers.push({
+                        username: member,
+                        code: DEFAULT_CODE,
+                        language: DEFAULT_LANGUAGE,
+                    });
+                }
+            }
+
+            setRoomName(roomData.name);
+            setUsers(updatedUsers);
+            setEditorState(({
+                code: DEFAULT_CODE,
+                language: DEFAULT_LANGUAGE,
+                currentlyViewingUser: username,
+            }));
         });
     }, []);
 
+    /**
+     * Handle the websocket connection and websocket events
+     */
     useEffect(() => {
         const { uuid } = Router.query;
         if (!uuid) {
             return;
         }
 
-        if (!websocket) {
-            setWebSocket(new WebSocket(`ws://localhost:4000/${uuid}`));
-        }
+        const websocket = new WebSocket(`${WEBSOCKET_URL}/${uuid}`);
 
-        if (!websocket) {
-            return;
-        }
-
-        websocket.onopen = () => {
-            console.log("connected");
-        }
-
-        websocket.onmessage = (event) => {
-            processMessage(event.data);
-        }
-
+        websocket.onopen = () => { }
         websocket.onclose = () => {
+            // TOOD: Might be better to show an error in the UI instead
             Router.push("/rooms");
         }
 
+        setWebSocket(websocket);
         // On component unmount, close websocket
         return () => {
             websocket.close();
         }
-    }, [websocket]);
 
+    }, []);
+
+
+    useEffect(() => {
+        if (!websocket) return;
+
+        websocket.onmessage = (event) => {
+            processMessage(event.data);
+        }
+    });
+
+    /**
+    * 
+    * @param rawMessage 
+    */
     function processMessage(rawMessage: string) {
         const message: WebSocketMessage = JSON.parse(rawMessage);
 
@@ -105,7 +155,7 @@ export default function Room() {
         switch (message.event) {
             case "userJoined":
                 newMessage = `User ${message.username} joined`;
-                setUsers(users => ([...users, { username: message.username!, code: "", language: "javascript" }]));
+                setUsers(users => ([...users, { username: message.username!, code: DEFAULT_CODE, language: DEFAULT_LANGUAGE }]));
                 break;
             case "userLeft":
                 newMessage = `User ${message.username} left`;
@@ -115,9 +165,18 @@ export default function Room() {
                 console.error("Error: ", message.message);
                 break;
             case "message":
-                newMessage = `User ${message.username}: ${message.message}`;
+                newMessage = `${message.username}: ${message.message}`;
                 break;
             case "code":
+                // Check if the user is currently being viewed, if so update the editor
+                if (message.username === editorState.currentlyViewingUser) {
+                    setEditorState(prevState => ({
+                        currentlyViewingUser: prevState.currentlyViewingUser,
+                        code: message.code!,
+                        language: message.language!,
+                    }));
+                }
+
                 setUsers(users => (users.map(user => {
                     if (user.username === message.username) {
                         return {
@@ -126,8 +185,10 @@ export default function Room() {
                             language: message.language!,
                         }
                     }
+
                     return user;
                 })));
+
 
                 newMessage = null;
                 break;
@@ -141,6 +202,9 @@ export default function Room() {
         }
     }
 
+
+
+
     function sendMessage() {
         const message = inputRef?.current?.value;
         if (!message) {
@@ -148,7 +212,8 @@ export default function Room() {
         }
 
         if (!websocket) {
-            console.log("No websocket connection");
+            // TOOD: Show error in UI
+            console.error("No websocket connection");
             return;
         }
 
@@ -161,32 +226,46 @@ export default function Room() {
         hasCodeChanged = false;
 
         if (!websocket) {
-            console.log("No websocket connection");
+            // TOOD: Show error in UI
+            console.error("No websocket connection");
             return;
         }
 
+        // TODO: Check for username here and update correctly
         const message = {
             event: "code",
-            code: currentCode,
-            language: currentLanguage
+            code: editorState.code,
+            language: editorState.language
         }
 
         websocket.send(JSON.stringify(message));
     }
 
-    function handleEditorChange(value: string | undefined, event: monaco.editor.IModelContentChangedEvent) {
+    function handleEditorChange(value: string | undefined, _event: monaco.editor.IModelContentChangedEvent) {
         if (!value) return;
         hasCodeChanged = true;
-        setCurrentCode(value);
+
+        setEditorState(editorState => ({
+            ...editorState,
+            code: value,
+        }));
     }
 
     function switchUser(userStr: string) {
         const user = users.find(user => user.username === userStr);
         if (!user) return;
 
-        setCurrentlyViewingUser(userStr);
-        setCurrentCode(user.code);
-        setCurrentLanguage(user.language);
+        // The user's code is already up to date, so no need to save it
+        console.log("Switching user to " + user.username);
+
+        setEditorState({
+            code: user.code,
+            language: user.language,
+            currentlyViewingUser: user.username,
+        });
+
+        console.log("switching user to " + user.username + " with code " + user.code + " and language " + user.language);
+
 
         // TODO: this is a hacky way to make the editor read only
         // editorRef.current?.updateOptions({
@@ -202,7 +281,7 @@ export default function Room() {
     return (
         <>
             <NavBar>
-                <Heading fontSize="xl"> Room Name Here </Heading>
+                <Heading fontSize="xl"> {roomName} </Heading>
             </NavBar>
 
             <Flex direction="column" padding={5}>
@@ -248,10 +327,10 @@ export default function Room() {
                                 theme="vs-dark"
                                 width="100%"
                                 height="83.5vh"
-                                language={currentLanguage}
+                                language={editorState.language}
                                 defaultValue=""
                                 onChange={handleEditorChange}
-                                value={currentCode}
+                                value={editorState.code}
                                 onMount={handleEditorMount}
                             />
 
@@ -259,10 +338,13 @@ export default function Room() {
                                 // TODO: Figure out how to get the value of the select
                                 (e) => {
                                     console.log(e.target.value);
-                                    setCurrentLanguage(e.target.value);
+                                    setEditorState(editorState => ({
+                                        ...editorState,
+                                        language: e.target.value
+                                    }));
                                 }
                             }>
-                                <Select size="sm" placeholder={currentLanguage}>
+                                <Select size="sm" placeholder={editorState.language}>
                                     <option value="javascript">JavaScript</option>
                                     <option value="typescript">TypeScript</option>
                                     <option value="java">Java</option>
