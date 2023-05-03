@@ -46,14 +46,6 @@ export default function Room() {
     // TODO: This might be inefficent as it will cause many state changes, might be better not to use state for this
     const [users, setUsers] = useState<UserData[]>([]);
 
-    let hasCodeChanged = false;
-
-    useEffect(() => {
-        setInterval(() => {
-            sendCurrentCode();
-        }, 1 * 1000);
-    });
-
     /**
      * Get the room info from the server and update the user state with the members
      */
@@ -101,7 +93,10 @@ export default function Room() {
             }
 
             setRoomName(roomData.name);
-            setUsers(updatedUsers);
+            setUsers((users) => (
+                [...users, ...updatedUsers]
+            ));
+
             setEditorState(({
                 code: DEFAULT_CODE,
                 language: DEFAULT_LANGUAGE,
@@ -135,6 +130,13 @@ export default function Room() {
 
     }, []);
 
+    let hasCodeChanged = false;
+
+    useEffect(() => {
+        setInterval(() => {
+            sendCurrentCode();
+        }, 1 * 1000);
+    });
 
     useEffect(() => {
         if (!websocket) return;
@@ -156,6 +158,9 @@ export default function Room() {
             case "userJoined":
                 newMessage = `User ${message.username} joined`;
                 setUsers(users => ([...users, { username: message.username!, code: DEFAULT_CODE, language: DEFAULT_LANGUAGE }]));
+
+                // When a user joins, all other users should send their code to the new user
+                sendCurrentCode(true);
                 break;
             case "userLeft":
                 newMessage = `User ${message.username} left`;
@@ -168,6 +173,7 @@ export default function Room() {
                 newMessage = `${message.username}: ${message.message}`;
                 break;
             case "code":
+                console.log(message);
                 // Check if the user is currently being viewed, if so update the editor
                 if (message.username === editorState.currentlyViewingUser) {
                     setEditorState(prevState => ({
@@ -202,9 +208,6 @@ export default function Room() {
         }
     }
 
-
-
-
     function sendMessage() {
         const message = inputRef?.current?.value;
         if (!message) {
@@ -217,10 +220,15 @@ export default function Room() {
             return;
         }
 
+        // Clear the input after sending the message
+        inputRef.current.value = "";
         websocket.send(message);
     }
 
-    function sendCurrentCode() {
+    function sendCurrentCode(forceSend: boolean = false) {
+        if (forceSend == true)
+            hasCodeChanged = true;
+
         if (!hasCodeChanged) return;
 
         hasCodeChanged = false;
