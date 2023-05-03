@@ -273,6 +273,9 @@ export default function Room() {
     }
 
     function switchUser(userStr: string) {
+        // Don't switch if the user is already being viewed
+        if (userStr === editorState.currentlyViewingUser) return;
+
         const user = users.find(user => user.username === userStr);
         if (!user) return;
 
