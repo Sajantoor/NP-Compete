@@ -70,31 +70,18 @@ export default function Room() {
             "mode": "cors",
         }).then(response => response.json());
 
-
+        // TODO: don't need to wait for both of the promises to resolve here
         Promise.all([roomData, userData]).then(([roomData, userData]) => {
             const username = userData.user.username;
-            const updatedUsers: UserData[] = [];
-
-            updatedUsers.push({
+            const currentUser: UserData = {
                 username: username,
                 code: DEFAULT_CODE,
                 language: DEFAULT_LANGUAGE,
-            });
-
-            // check if valid user before pushing, ie not an empty list item
-            if (roomData.members.length > 0) {
-                for (const member of roomData.members) {
-                    updatedUsers.push({
-                        username: member,
-                        code: DEFAULT_CODE,
-                        language: DEFAULT_LANGUAGE,
-                    });
-                }
-            }
+            };
 
             setRoomName(roomData.name);
             setUsers((users) => (
-                [...users, ...updatedUsers]
+                [currentUser, ...users]
             ));
 
             setEditorState(({
@@ -183,18 +170,26 @@ export default function Room() {
                     }));
                 }
 
-                setUsers(users => (users.map(user => {
-                    if (user.username === message.username) {
-                        return {
-                            ...user,
-                            code: message.code!,
-                            language: message.language!,
-                        }
-                    }
 
-                    return user;
-                })));
-
+                // The user's room users may have not populated yet, everyone is sending their code to that user
+                // populate the user's room users with the corresponding code 
+                setUsers(users => (
+                    // TODO: This code fucking sucks.
+                    // If the user exists already, then we simply update the user
+                    users.find(user => user.username === message.username) ?
+                        users.map(user => {
+                            if (user.username === message.username) {
+                                return {
+                                    ...user,
+                                    code: message.code!,
+                                    language: message.language!,
+                                }
+                            }
+                            return user;
+                        })
+                        // Else we add it to the user
+                        : [...users, { username: message.username!, code: message.code!, language: message.language! }]
+                ));
 
                 newMessage = null;
                 break;
