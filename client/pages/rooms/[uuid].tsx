@@ -29,6 +29,11 @@ interface EditorState {
     currentlyViewingUser: string,
 }
 
+interface CodeState {
+    code: string,
+    language: string,
+}
+
 export default function Room() {
     const inputRef = useRef<HTMLInputElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -46,6 +51,10 @@ export default function Room() {
 
     // TODO: This might be inefficent as it will cause many state changes, might be better not to use state for this
     const [users, setUsers] = useState<UserData[]>([]);
+    const [lastSentCode, setLastSentCode] = useState<CodeState>({
+        code: DEFAULT_CODE,
+        language: DEFAULT_LANGUAGE,
+    });
 
     /**
      * Get the room info from the server and update the user state with the members
@@ -120,13 +129,14 @@ export default function Room() {
 
     }, []);
 
-    let hasCodeChanged = false;
-
     useEffect(() => {
-        setInterval(() => {
+        if (editorState.currentlyViewingUser === currentUsername && (lastSentCode.code !== editorState.code || lastSentCode.language !== editorState.language)) {
             sendCurrentCode();
-        }, 1 * 1000);
-    });
+        }
+
+        // TODO: Remove this. 
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editorState])
 
     useEffect(() => {
         if (!websocket) return;
@@ -135,6 +145,30 @@ export default function Room() {
             processMessage(event.data);
         }
     });
+
+    function sendCurrentCode(forceSend: boolean = false) {
+        console.log("There is a code change, sending code");
+
+        if (!websocket) {
+            // TOOD: Show error in UI
+            console.error("No websocket connection");
+            return;
+        }
+
+        // TODO: Check for username here and update correctly
+        const message = {
+            event: "code",
+            code: editorState.code,
+            language: editorState.language
+        }
+
+        setLastSentCode({
+            code: editorState.code,
+            language: editorState.language,
+        });
+
+        websocket.send(JSON.stringify(message));
+    }
 
     /**
     * 
@@ -223,33 +257,8 @@ export default function Room() {
         websocket.send(message);
     }
 
-    function sendCurrentCode(forceSend: boolean = false) {
-        if (forceSend == true)
-            hasCodeChanged = true;
-
-        if (!hasCodeChanged) return;
-
-        hasCodeChanged = false;
-
-        if (!websocket) {
-            // TOOD: Show error in UI
-            console.error("No websocket connection");
-            return;
-        }
-
-        // TODO: Check for username here and update correctly
-        const message = {
-            event: "code",
-            code: editorState.code,
-            language: editorState.language
-        }
-
-        websocket.send(JSON.stringify(message));
-    }
-
     function handleEditorChange(value: string | undefined, _event: monaco.editor.IModelContentChangedEvent) {
         if (!value) return;
-        hasCodeChanged = true;
 
         setEditorState(editorState => ({
             ...editorState,
