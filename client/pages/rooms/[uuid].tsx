@@ -146,9 +146,7 @@ export default function Room() {
         }
     });
 
-    function sendCurrentCode(forceSend: boolean = false) {
-        console.log("There is a code change, sending code");
-
+    function sendCurrentCode() {
         if (!websocket) {
             // TOOD: Show error in UI
             console.error("No websocket connection");
@@ -184,7 +182,7 @@ export default function Room() {
                 setUsers(users => ([...users, { username: message.username!, code: DEFAULT_CODE, language: DEFAULT_LANGUAGE }]));
 
                 // When a user joins, all other users should send their code to the new user
-                sendCurrentCode(true);
+                sendCurrentCode();
                 break;
             case "userLeft":
                 newMessage = `User ${message.username} left`;
@@ -197,7 +195,6 @@ export default function Room() {
                 newMessage = `${message.username}: ${message.message}`;
                 break;
             case "code":
-                console.log(message);
                 // Check if the user is currently being viewed, if so update the editor
                 if (message.username === editorState.currentlyViewingUser) {
                     setEditorState(prevState => ({
@@ -299,8 +296,6 @@ export default function Room() {
             language: user.language,
             currentlyViewingUser: user.username,
         });
-
-        console.log("switching user to " + user.username + " with code " + user.code + " and language " + user.language);
 
         editorRef.current?.updateOptions({
             readOnly: user.username !== currentUsername
