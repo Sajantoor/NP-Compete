@@ -42,6 +42,7 @@ export default function Room() {
         currentlyViewingUser: "",
     });
 
+    const [currentUsername, setCurrentUsername] = useState<string | null>(null);
 
     // TODO: This might be inefficent as it will cause many state changes, might be better not to use state for this
     const [users, setUsers] = useState<UserData[]>([]);
@@ -73,6 +74,8 @@ export default function Room() {
         // TODO: don't need to wait for both of the promises to resolve here
         Promise.all([roomData, userData]).then(([roomData, userData]) => {
             const username = userData.user.username;
+            setCurrentUsername(username);
+
             const currentUser: UserData = {
                 username: username,
                 code: DEFAULT_CODE,
@@ -198,7 +201,7 @@ export default function Room() {
                 break;
         }
 
-        if (newMessage && message.event !== "code") {
+        if (newMessage) {
             setMessages(messages => ([...messages, newMessage!]));
         }
     }
@@ -254,12 +257,33 @@ export default function Room() {
         }));
     }
 
+    function handleLanguageChange(e: React.FormEvent<HTMLDivElement>) {
+        setEditorState(editorState => ({
+            ...editorState,
+            // TODO: Fix this ts error 
+            // @ts-ignore
+            language: e.target.value
+        }));
+    }
+
     function switchUser(userStr: string) {
         const user = users.find(user => user.username === userStr);
         if (!user) return;
 
-        // The user's code is already up to date, so no need to save it
-        console.log("Switching user to " + user.username);
+        // save the user's current code 
+        setUsers(users => (
+            users.map(user => {
+                if (user.username === currentUsername) {
+                    return {
+                        ...user,
+                        code: editorState.code,
+                        language: editorState.language,
+                    }
+                }
+                return user;
+            }
+            )
+        ));
 
         setEditorState({
             code: user.code,
@@ -269,11 +293,9 @@ export default function Room() {
 
         console.log("switching user to " + user.username + " with code " + user.code + " and language " + user.language);
 
-
-        // TODO: this is a hacky way to make the editor read only
-        // editorRef.current?.updateOptions({
-        //     readOnly: user.username !== "Me"
-        // });
+        editorRef.current?.updateOptions({
+            readOnly: user.username !== currentUsername
+        });
     }
 
     // @ts-ignore for some reason monaco is not being recognized
@@ -337,16 +359,7 @@ export default function Room() {
                                 onMount={handleEditorMount}
                             />
 
-                            <Flex direction="row" justifyContent="flex-end" mt={2} padding={2} onChange={
-                                // TODO: Figure out how to get the value of the select
-                                (e) => {
-                                    console.log(e.target.value);
-                                    setEditorState(editorState => ({
-                                        ...editorState,
-                                        language: e.target.value
-                                    }));
-                                }
-                            }>
+                            <Flex direction="row" justifyContent="flex-end" mt={2} padding={2} onChange={handleLanguageChange}>
                                 <Select size="sm" placeholder={editorState.language}>
                                     <option value="javascript">JavaScript</option>
                                     <option value="typescript">TypeScript</option>
