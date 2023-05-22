@@ -4,7 +4,7 @@ import monaco from 'monaco-editor';
 import Router from "next/router"
 import { useEffect, useRef, useState } from "react";
 import NavBar from "../../components/navBar";
-import { SERVER_URL, WEBSOCKET_URL } from "../../constants";
+import { LEETCODE_API, SERVER_URL, WEBSOCKET_URL } from "../../constants";
 
 const DEFAULT_LANGUAGE = "javascript";
 const DEFAULT_CODE = "";
@@ -23,9 +23,7 @@ interface UserData {
     language: string,
 }
 
-interface EditorState {
-    code: string,
-    language: string,
+interface EditorState extends CodeState {
     currentlyViewingUser: string,
 }
 
@@ -33,6 +31,18 @@ interface CodeState {
     code: string,
     language: string,
 }
+
+interface QuestionData {
+    title: string,
+    description: string,
+}
+
+interface CodeData {
+    value: string,
+    language: string,
+    code: string,
+}
+
 
 export default function Room() {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -55,6 +65,10 @@ export default function Room() {
         code: DEFAULT_CODE,
         language: DEFAULT_LANGUAGE,
     });
+
+    const [currentQuestion, setCurrentQuestion] = useState<QuestionData>({} as QuestionData);
+    // list of code per language for the current user
+    const [userCode, setUserCode] = useState<CodeData[]>([]);
 
     /**
      * Get the room info from the server and update the user state with the members
@@ -80,8 +94,32 @@ export default function Room() {
             "mode": "cors",
         }).then(response => response.json());
 
-        // TODO: don't need to wait for both of the promises to resolve here
-        Promise.all([roomData, userData]).then(([roomData, userData]) => {
+
+        roomData.then((roomData) => {
+            const currentQuestion = roomData.question;
+            setRoomName(roomData.name);
+
+            // TODO: For now get a random question, later we will actually use the currentQuestion field lmao 
+            const currentQuestionData = fetch(`${LEETCODE_API}/api/v1/leetcode/questions/random`, {
+                "method": "GET",
+                "mode": "cors"
+            }).then(response => response.json());
+
+            currentQuestionData.then((currentQuestionData) => {
+                const questionTitle = currentQuestionData.metaData.name;
+                const questionDescription = currentQuestionData.content;
+                const codeData = currentQuestionData.codeDefinition;
+
+                setCurrentQuestion({
+                    title: questionTitle,
+                    description: questionDescription,
+                });
+
+                setUserCode(codeData);
+            });
+        });
+
+        userData.then((userData) => {
             const username = userData.user.username;
             setCurrentUsername(username);
 
@@ -91,7 +129,6 @@ export default function Room() {
                 language: DEFAULT_LANGUAGE,
             };
 
-            setRoomName(roomData.name);
             setUsers((users) => (
                 [currentUser, ...users]
             ));
@@ -264,11 +301,29 @@ export default function Room() {
     }
 
     function handleLanguageChange(e: React.FormEvent<HTMLDivElement>) {
+        // save the user's current code for that language
+        setUserCode(userCode => (
+            userCode.map(code => {
+                if (code.language === editorState.language) {
+                    return {
+                        ...code,
+                        code: editorState.code,
+                    }
+                }
+                return code;
+            }
+            )
+        ));
+
+        // TODO: Fix this ts error 
+        // @ts-ignore
+        const language = e.target.value;
+        const code = userCode.find(code => code.language === language)?.code || DEFAULT_CODE;
+
         setEditorState(editorState => ({
             ...editorState,
-            // TODO: Fix this ts error 
-            // @ts-ignore
-            language: e.target.value
+            code: code,
+            language: language,
         }));
     }
 
@@ -323,23 +378,9 @@ export default function Room() {
                 <Flex direction="row" mb={2}>
                     <Flex direction="row" minWidth="100%" height="100%">
                         <Flex bg="gray.800" p={5} direction="column" width="25%">
-                            <Heading fontSize="xl" mb={5}> Two Sum </Heading>
+                            <Heading fontSize="xl" mb={5}> {currentQuestion.title} </Heading>
                             <Text>
-                                Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.
-
-                                You may assume that each input would have exactly one solution, and you may not use the same element twice.
-
-                                You can return the answer in any order.
-
-                                Example 1:
-
-                                Input: nums = [2,7,11,15], target = 9
-                                Output: [0,1]
-
-                                Constraints:
-
-
-                                Follow-up: Can you come up with an algorithm that is less than O(n^2) time complexity
+                                {currentQuestion.description}
                             </Text>
                         </Flex>
 

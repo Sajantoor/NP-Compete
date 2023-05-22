@@ -58,6 +58,11 @@ export async function createRoom(req: Request, res: Response) {
         room.password = hashedPassword;
     }
 
+    // TODO: I will change this later but for now I'm going to pick a random question and set it as the current question
+    // pick a random number from 1 to 2829 (number of questions in the database)
+    const randomQuestion = Math.floor(Math.random() * 2829) + 1;
+    room.question = randomQuestion;
+
     const addToRedis = await RedisCache.addRoom(room);
 
     if (addToRedis === 0) {

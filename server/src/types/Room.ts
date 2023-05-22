@@ -5,4 +5,5 @@ export interface Room {
     owner?: string;
     password?: string;
     members: string[];
+    question?: number;
 }
