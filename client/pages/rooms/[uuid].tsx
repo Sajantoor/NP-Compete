@@ -34,13 +34,13 @@ interface CodeState {
 
 interface QuestionData {
     title: string,
+    title_slug: string, 
     description: string,
+    id: number, 
 }
 
-interface CodeData {
+interface CodeData extends CodeState {
     value: string,
-    language: string,
-    code: string,
 }
 
 
@@ -74,6 +74,7 @@ export default function Room() {
      * Get the room info from the server and update the user state with the members
      */
     useEffect(() => {
+        // TODO: Refactor to use async await 
         const { uuid } = Router.query;
         if (!uuid) {
             return;
@@ -94,13 +95,11 @@ export default function Room() {
             "mode": "cors",
         }).then(response => response.json());
 
-
         roomData.then((roomData) => {
-            const currentQuestion = roomData.question;
+            const currentQuestion = roomData.questionData.questionTitle;
             setRoomName(roomData.name);
 
-            // TODO: For now get a random question, later we will actually use the currentQuestion field lmao 
-            const currentQuestionData = fetch(`${LEETCODE_API}/api/v1/leetcode/questions/random`, {
+            const currentQuestionData = fetch(`${LEETCODE_API}/api/v1/leetcode/questions/${currentQuestion}`, {
                 "method": "GET",
                 "mode": "cors"
             }).then(response => response.json());
@@ -112,13 +111,17 @@ export default function Room() {
 
                 setCurrentQuestion({
                     title: questionTitle,
+                    title_slug: currentQuestion,
                     description: questionDescription,
+                    id: roomData.questionData.questionID,
                 });
 
                 setUserCode(codeData);
             });
         });
 
+        // TOOD: Might be a better way to get the user's username instead of making
+        // an API call here 
         userData.then((userData) => {
             const username = userData.user.username;
             setCurrentUsername(username);
@@ -167,7 +170,9 @@ export default function Room() {
     }, []);
 
     useEffect(() => {
-        if (editorState.currentlyViewingUser === currentUsername && (lastSentCode.code !== editorState.code || lastSentCode.language !== editorState.language)) {
+        if (editorState.currentlyViewingUser === currentUsername &&
+            (lastSentCode.code !== editorState.code || lastSentCode.language !== editorState.language)
+        ) {
             sendCurrentCode();
         }
 
@@ -217,7 +222,6 @@ export default function Room() {
             case "userJoined":
                 newMessage = `User ${message.username} joined`;
                 setUsers(users => ([...users, { username: message.username!, code: DEFAULT_CODE, language: DEFAULT_LANGUAGE }]));
-
                 // When a user joins, all other users should send their code to the new user
                 sendCurrentCode();
                 break;
@@ -327,8 +331,18 @@ export default function Room() {
         }));
     }
 
+    function isViewingCurrentUser() {
+        return (editorState.currentlyViewingUser === currentUsername);
+    }
+
+    function isWebSocketReady() {
+        if (!websocket) return false;
+        return websocket?.readyState === websocket.OPEN;
+    }
+
     function switchUser(userStr: string) {
         // Don't switch if the user is already being viewed
+        // TODO: Test with isViewingCurrentUser function instead 
         if (userStr === editorState.currentlyViewingUser) return;
 
         const user = users.find(user => user.username === userStr);
@@ -358,6 +372,56 @@ export default function Room() {
         editorRef.current?.updateOptions({
             readOnly: user.username !== currentUsername
         });
+    }
+
+    async function handleSubmitQuestion() {
+        // Don't submit anything if we viewing someone else's code 
+        if (!isViewingCurrentUser() || !isWebSocketReady()) {
+            return;
+        }
+
+        // send websocket event to say we have submit the question
+        const message = {
+            event: "userSubmit",
+            question: {
+                code: editorState.code,
+                language: editorState.language,
+            }
+        }
+
+        websocket!.send(JSON.stringify(message));
+
+        // Call LeetCode API to check if the code is correct
+        const submissionRequestURL = `${LEETCODE_API}/api/v1/leetcode/questions/${currentQuestion.title_slug}/submit`;
+        const requestBody = {
+            question_id: currentQuestion.id.toString(),
+            lang: editorState.language,
+            typed_code: editorState.code,
+        }
+
+        // TOOD: Going to hard code some headers for now...
+        const csrfToken = "uXJMpuPGmTRHu8kfXyhsYtCGIk5fB2sZ5TwePYGtiGqViSRvH1rh4JYdZtdmyIIg";
+        const leetcode_session = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJfYXV0aF91c2VyX2lkIjoiNTY0NzUzOSIsIl9hdXRoX3VzZXJfYmFja2VuZCI6ImRqYW5nby5jb250cmliLmF1dGguYmFja2VuZHMuTW9kZWxCYWNrZW5kIiwiX2F1dGhfdXNlcl9oYXNoIjoiMmNlNTRkZDZlYTZkYTM0ZDlkNDkwMTU1ZWE4YThmODU2YTIxY2IxZjcwMjA2OWQ2YWU3YzRkNGY2MDk5MjI1MCIsImlkIjo1NjQ3NTM5LCJlbWFpbCI6InNhamFudG9vci5ub3RpZml5QGdtYWlsLmNvbSIsInVzZXJuYW1lIjoidGhyb3dhd2F5Njk2OSIsInVzZXJfc2x1ZyI6InRocm93YXdheTY5NjkiLCJhdmF0YXIiOiJodHRwczovL2Fzc2V0cy5sZWV0Y29kZS5jb20vdXNlcnMvZGVmYXVsdF9hdmF0YXIuanBnIiwicmVmcmVzaGVkX2F0IjoxNzA1MzcxNjI0LCJpcCI6IjIwMDE6NTY5OjdmYjE6MmQwMDoyODdiOmUxNzU6OWNmYjpmYjk5IiwiaWRlbnRpdHkiOiI5YzFjZTI3ZjA4YjE2NDc5ZDJlMTc3NDMwNjJiMjhlZCIsInNlc3Npb25faWQiOjUzNjMxMzExLCJfc2Vzc2lvbl9leHBpcnkiOjEyMDk2MDB9.loWqQvtAAhQn9tSpSxt9lgg-uBLs1vuRoAZbn2m1YAc";
+
+        const submissionResponse = await fetch(submissionRequestURL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Session": leetcode_session,
+                "X-CSRF-Token": csrfToken,
+            },
+            body: JSON.stringify(requestBody),
+        });
+        
+        // Get the submission id and use it to get the submission result
+        const submissionResult = await submissionResponse.json();
+        const submissionId = submissionResult.submission_id;
+
+        // Get the submission result 
+        const requestURL = `${LEETCODE_API}/api/v1/leetcode/questions/submissions/${submissionId}`;
+        const response = await fetch(requestURL);
+        const result = await response.json();
+        console.log(result);
     }
 
     // @ts-ignore for some reason monaco is not being recognized
@@ -414,7 +478,7 @@ export default function Room() {
                                     <option value="java">Java</option>
                                     <option value="cpp">C++</option>
                                 </Select>
-                                <Button size="sm" ml={2}> Submit </Button>
+                                <Button size="sm" ml={2} onClick={handleSubmitQuestion}> Submit </Button>
                             </Flex>
                         </Flex>
 
