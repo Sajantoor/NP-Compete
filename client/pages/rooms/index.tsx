@@ -3,7 +3,7 @@ import { GetStaticProps } from "next";
 import Router from "next/router";
 import Link from "next/link";
 import { useState } from "react";
-import { Room } from "../../types/Room";
+import { Room } from "../../../server/src/types/Room";
 import { Button, Flex, Heading, Input, Stack, Text } from "@chakra-ui/react";
 import NavBar from "../../components/navBar";
 
@@ -14,7 +14,6 @@ interface RoomInput {
 }
 
 export default function Rooms({ rooms }: { rooms: Room[] }) {
-
     const [roomInput, setRoomInput] = useState<RoomInput>({
         name: "",
         size: 0,
@@ -42,13 +41,12 @@ export default function Rooms({ rooms }: { rooms: Room[] }) {
         });
 
         const data = await response.json();
-        console.log(data);
 
         if (response.ok) {
             Router.push(`/rooms/${data.uuid}`);
         }
 
-        return null;
+        // TODO: handle error 
     }
 
     return (
@@ -97,8 +95,6 @@ async function fetchRooms() {
 
 export const getStaticProps: GetStaticProps = async () => {
     const rooms = await fetchRooms();
-
-    console.log(rooms);
 
     return {
         props: {

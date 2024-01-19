@@ -157,10 +157,12 @@ async function sendUserMessage(webSocketServer: WebSocketServer, webSocket: WebS
 async function getUsername(webSocket: WebSocket): Promise<string | null> {
     // TODO: This operation is done a lot, so we can cache the username instead in redis cache 
     const user = await getUserById(webSocket.username);
+    
     if (!user) {
         sendError(webSocket, "User not found");
         return null;
     }
+
     const username = user.username;
     return username;
 }

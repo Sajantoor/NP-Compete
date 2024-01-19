@@ -1,7 +1,7 @@
 export interface codeDefinition {
-    value: string;
-    text: string;
-    defaultCode: string;
+    value: string; // language slug
+    text: string; // language name
+    defaultCode: string; // default code
 }
 
 export interface Params {

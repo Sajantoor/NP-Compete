@@ -96,7 +96,6 @@ export async function createRoom(req: Request, res: Response) {
         return badRequestError(res, error.message);
     }
 
-    console.log("Creating room");
     // Get the question ID and title from the question result
     const questionData = questionResult as QuestionResult;
     const selectedQuestion: QuestionMetadata = {
@@ -254,7 +253,6 @@ function validateInputtedRoom(room: Room) {
 
     return true;
 }
-
 
 async function getSubmissionResult(submissionId: string): Promise<SubmissionResult> {
     const requestURL = `${LEETCODE_API}/api/v1/leetcode/questions/submissions/${submissionId}`;

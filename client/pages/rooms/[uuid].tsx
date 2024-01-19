@@ -5,44 +5,38 @@ import Router from "next/router"
 import { useEffect, useRef, useState } from "react";
 import NavBar from "../../components/navBar";
 import { LEETCODE_API, SERVER_URL, WEBSOCKET_URL } from "../../constants";
+import { WebSocketMessage } from "../../../server/src/types/WebSocketMessage";
+import { Room as RoomType, QuestionResult } from "../../../server/src/types/Room";
 
 const DEFAULT_LANGUAGE = "javascript";
 const DEFAULT_CODE = "";
-
-interface WebSocketMessage {
-    event: string, // userJoined, userLeft, message, error 
-    message?: string // Only appears on error and message events
-    username?: string // Only appears on userJoin, userLeft and message events
-    code?: string // Only appears on code update events
-    language?: string // Only appears on code update events
-}
-
-interface UserData {
-    username: string,
-    code: string,
-    language: string,
-}
-
-interface EditorState extends CodeState {
-    currentlyViewingUser: string,
-}
 
 interface CodeState {
     code: string,
     language: string,
 }
 
-interface QuestionData {
+interface UserData extends CodeState {
+    username: string,
+}
+
+// This is stored codeData for each possible language
+interface CodeData {
+    languageValue: string; // language slug
+    languageName: string; // language name
+    code: string; // default code
+}
+
+interface EditorState extends CodeState {
+    currentlyViewingUser: string,
+}
+
+interface QuestionMetadata {
     title: string,
-    title_slug: string, 
+    title_slug: string,
     description: string,
-    id: number, 
+    id: number,
 }
-
-interface CodeData extends CodeState {
-    value: string,
-}
-
 
 export default function Room() {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -66,7 +60,7 @@ export default function Room() {
         language: DEFAULT_LANGUAGE,
     });
 
-    const [currentQuestion, setCurrentQuestion] = useState<QuestionData>({} as QuestionData);
+    const [currentQuestion, setCurrentQuestion] = useState<QuestionMetadata>({} as QuestionMetadata);
     // list of code per language for the current user
     const [userCode, setUserCode] = useState<CodeData[]>([]);
 
@@ -74,61 +68,68 @@ export default function Room() {
      * Get the room info from the server and update the user state with the members
      */
     useEffect(() => {
-        // TODO: Refactor to use async await 
-        const { uuid } = Router.query;
-        if (!uuid) {
-            return;
-        }
+        async function fetchDataAndSetState() {
+            const { uuid } = Router.query;
+            if (!uuid) {
+                return;
+            }
 
-        // make http request to get the room info 
-        const roomData = fetch(`${SERVER_URL}/api/v1/rooms/${uuid}`, {
-            "method": "GET",
-            "credentials": "include",
-            "mode": "cors",
-        }).then(response => response.json());
+            const roomResponse = await fetch(`${SERVER_URL}/api/v1/rooms/${uuid}`, {
+                "method": "GET",
+                "credentials": "include",
+                "mode": "cors",
+            });
 
+            const userResponse = await fetch(`${SERVER_URL}/api/v1/profile`, {
+                "method": "GET",
+                "credentials": "include",
+                "mode": "cors",
+            });
 
-        // Get the user's username from the server 
-        const userData = fetch(`${SERVER_URL}/api/v1/profile`, {
-            "method": "GET",
-            "credentials": "include",
-            "mode": "cors",
-        }).then(response => response.json());
+            const userData = await userResponse.json();
+            const roomData: RoomType = await roomResponse.json();
+            const currentQuestion = roomData.questionData?.questionTitle;
 
-        roomData.then((roomData) => {
-            const currentQuestion = roomData.questionData.questionTitle;
+            if (!currentQuestion) {
+                // TODO: Handle this error
+                return;
+            }
+
+            const currentQuestionResponse = await fetch(`${LEETCODE_API}/api/v1/leetcode/questions/${currentQuestion}`, {
+                "method": "GET",
+                "mode": "cors",
+            });
+
             setRoomName(roomData.name);
 
-            const currentQuestionData = fetch(`${LEETCODE_API}/api/v1/leetcode/questions/${currentQuestion}`, {
-                "method": "GET",
-                "mode": "cors"
-            }).then(response => response.json());
+            const currentQuestionData: QuestionResult = await currentQuestionResponse.json();
 
-            currentQuestionData.then((currentQuestionData) => {
-                const questionTitle = currentQuestionData.metaData.name;
-                const questionDescription = currentQuestionData.content;
-                const codeData = currentQuestionData.codeDefinition;
-
-                setCurrentQuestion({
-                    title: questionTitle,
-                    title_slug: currentQuestion,
-                    description: questionDescription,
-                    id: roomData.questionData.questionID,
-                });
-
-                setUserCode(codeData);
+            setCurrentQuestion({
+                title: currentQuestionData.metaData.name,
+                title_slug: currentQuestion,
+                description: currentQuestionData.content,
+                id: roomData.questionData!.questionID,
             });
-        });
 
-        // TOOD: Might be a better way to get the user's username instead of making
-        // an API call here 
-        userData.then((userData) => {
+            // Set user's code for each language by using currentQuestionData.codeDefinition 
+            const userCode: CodeData[] = [];
+            for (const language of currentQuestionData.codeDefinition) {
+                userCode.push({
+                    languageValue: language.value,
+                    languageName: language.text,
+                    code: language.defaultCode,
+                });
+            }
+            setUserCode(userCode);
+
             const username = userData.user.username;
             setCurrentUsername(username);
 
+            const currentCode = userCode.find(code => code.languageValue === DEFAULT_LANGUAGE)?.code || DEFAULT_CODE;
+
             const currentUser: UserData = {
                 username: username,
-                code: DEFAULT_CODE,
+                code: currentCode,
                 language: DEFAULT_LANGUAGE,
             };
 
@@ -137,12 +138,14 @@ export default function Room() {
             ));
 
             setEditorState(({
-                code: DEFAULT_CODE,
+                code: currentCode,
                 language: DEFAULT_LANGUAGE,
                 currentlyViewingUser: username,
             }));
-        });
-    }, []);
+        }
+
+        fetchDataAndSetState();
+    }, [])
 
     /**
      * Handle the websocket connection and websocket events
@@ -170,6 +173,7 @@ export default function Room() {
     }, []);
 
     useEffect(() => {
+        // Don't send the code if we are not viewing our own code and the code has not changed
         if (editorState.currentlyViewingUser === currentUsername &&
             (lastSentCode.code !== editorState.code || lastSentCode.language !== editorState.language)
         ) {
@@ -184,7 +188,7 @@ export default function Room() {
         if (!websocket) return;
 
         websocket.onmessage = (event) => {
-            processMessage(event.data);
+            handleMessage(event.data);
         }
     });
 
@@ -210,63 +214,88 @@ export default function Room() {
         websocket.send(JSON.stringify(message));
     }
 
+    function handleCodeEvent(message: WebSocketMessage) {
+        // Check if the user is currently being viewed, if so update the editor
+        if (message.username === editorState.currentlyViewingUser) {
+            setEditorState(prevState => ({
+                currentlyViewingUser: prevState.currentlyViewingUser,
+                code: message.code!,
+                language: message.language!,
+            }));
+        }
+
+
+        // The user's room users may have not populated yet, everyone is sending their code to that user
+        // populate the user's room users with the corresponding code 
+        setUsers(users => (
+            // TODO: This code fucking sucks.
+            // If the user exists already, then we simply update the user
+            users.find(user => user.username === message.username) ?
+                users.map(user => {
+                    if (user.username === message.username) {
+                        return {
+                            ...user,
+                            code: message.code!,
+                            language: message.language!,
+                        }
+                    }
+                    return user;
+                })
+                // Else we add it to the user
+                : [...users, { username: message.username!, code: message.code!, language: message.language! }]
+        ));
+    }
+
+
+    function handleUserJoinEvent(message: WebSocketMessage): string {
+        setUsers(users => ([...users, { username: message.username!, code: DEFAULT_CODE, language: DEFAULT_LANGUAGE }]));
+        // When a user joins, all other users should send their code to the new user
+        sendCurrentCode();
+        return `User ${message.username} joined`;
+    }
+
+    function handleUserLeaveEvent(message: WebSocketMessage) {
+        setUsers(users => (users.filter(user => user.username !== message.username)));
+        return `User ${message.username} left`;
+    }
+
+    function handleUserSubmitEvent(message: WebSocketMessage) {
+        return `User ${message.username} submitted their code`;
+    }
+
+    function handleUserSubmitResultEvent(message: WebSocketMessage) {
+        return `User ${message.username} submitted their code and got a result`;
+    }
+
     /**
     * 
     * @param rawMessage 
     */
-    function processMessage(rawMessage: string) {
+    function handleMessage(rawMessage: string) {
         const message: WebSocketMessage = JSON.parse(rawMessage);
 
         let newMessage: string | undefined | null;
         switch (message.event) {
+            case "code":
+                handleCodeEvent(message);
+                break;
+            case "userSubmit":
+                newMessage = handleUserSubmitEvent(message);
+                break;
+            case "userSubmitResult":
+                newMessage = handleUserSubmitResultEvent(message);
+                break;
             case "userJoined":
-                newMessage = `User ${message.username} joined`;
-                setUsers(users => ([...users, { username: message.username!, code: DEFAULT_CODE, language: DEFAULT_LANGUAGE }]));
-                // When a user joins, all other users should send their code to the new user
-                sendCurrentCode();
+                newMessage = handleUserJoinEvent(message);
                 break;
             case "userLeft":
-                newMessage = `User ${message.username} left`;
-                setUsers(users => (users.filter(user => user.username !== message.username)));
+                newMessage = handleUserLeaveEvent(message);
                 break;
             case "error":
                 console.error("Error: ", message.message);
                 break;
             case "message":
                 newMessage = `${message.username}: ${message.message}`;
-                break;
-            case "code":
-                // Check if the user is currently being viewed, if so update the editor
-                if (message.username === editorState.currentlyViewingUser) {
-                    setEditorState(prevState => ({
-                        currentlyViewingUser: prevState.currentlyViewingUser,
-                        code: message.code!,
-                        language: message.language!,
-                    }));
-                }
-
-
-                // The user's room users may have not populated yet, everyone is sending their code to that user
-                // populate the user's room users with the corresponding code 
-                setUsers(users => (
-                    // TODO: This code fucking sucks.
-                    // If the user exists already, then we simply update the user
-                    users.find(user => user.username === message.username) ?
-                        users.map(user => {
-                            if (user.username === message.username) {
-                                return {
-                                    ...user,
-                                    code: message.code!,
-                                    language: message.language!,
-                                }
-                            }
-                            return user;
-                        })
-                        // Else we add it to the user
-                        : [...users, { username: message.username!, code: message.code!, language: message.language! }]
-                ));
-
-                newMessage = null;
                 break;
             default:
                 console.error("Unknown event: ", message.event);
@@ -308,7 +337,7 @@ export default function Room() {
         // save the user's current code for that language
         setUserCode(userCode => (
             userCode.map(code => {
-                if (code.language === editorState.language) {
+                if (code.languageValue === editorState.language) {
                     return {
                         ...code,
                         code: editorState.code,
@@ -322,7 +351,8 @@ export default function Room() {
         // TODO: Fix this ts error 
         // @ts-ignore
         const language = e.target.value;
-        const code = userCode.find(code => code.language === language)?.code || DEFAULT_CODE;
+        // Get the code for the language or use the default code as a fallback
+        const code = userCode.find(code => code.languageValue === language)?.code || DEFAULT_CODE;
 
         setEditorState(editorState => ({
             ...editorState,
@@ -381,7 +411,7 @@ export default function Room() {
         }
 
         // send websocket event to say we have submit the question
-        const message = {
+        const userSubmitMessage = {
             event: "userSubmit",
             question: {
                 code: editorState.code,
@@ -389,7 +419,7 @@ export default function Room() {
             }
         }
 
-        websocket!.send(JSON.stringify(message));
+        websocket!.send(JSON.stringify(userSubmitMessage));
 
         // Call LeetCode API to check if the code is correct
         const submissionRequestURL = `${LEETCODE_API}/api/v1/leetcode/questions/${currentQuestion.title_slug}/submit`;
@@ -399,20 +429,14 @@ export default function Room() {
             typed_code: editorState.code,
         }
 
-        // TOOD: Going to hard code some headers for now...
-        const csrfToken = "uXJMpuPGmTRHu8kfXyhsYtCGIk5fB2sZ5TwePYGtiGqViSRvH1rh4JYdZtdmyIIg";
-        const leetcode_session = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJfYXV0aF91c2VyX2lkIjoiNTY0NzUzOSIsIl9hdXRoX3VzZXJfYmFja2VuZCI6ImRqYW5nby5jb250cmliLmF1dGguYmFja2VuZHMuTW9kZWxCYWNrZW5kIiwiX2F1dGhfdXNlcl9oYXNoIjoiMmNlNTRkZDZlYTZkYTM0ZDlkNDkwMTU1ZWE4YThmODU2YTIxY2IxZjcwMjA2OWQ2YWU3YzRkNGY2MDk5MjI1MCIsImlkIjo1NjQ3NTM5LCJlbWFpbCI6InNhamFudG9vci5ub3RpZml5QGdtYWlsLmNvbSIsInVzZXJuYW1lIjoidGhyb3dhd2F5Njk2OSIsInVzZXJfc2x1ZyI6InRocm93YXdheTY5NjkiLCJhdmF0YXIiOiJodHRwczovL2Fzc2V0cy5sZWV0Y29kZS5jb20vdXNlcnMvZGVmYXVsdF9hdmF0YXIuanBnIiwicmVmcmVzaGVkX2F0IjoxNzA1MzcxNjI0LCJpcCI6IjIwMDE6NTY5OjdmYjE6MmQwMDoyODdiOmUxNzU6OWNmYjpmYjk5IiwiaWRlbnRpdHkiOiI5YzFjZTI3ZjA4YjE2NDc5ZDJlMTc3NDMwNjJiMjhlZCIsInNlc3Npb25faWQiOjUzNjMxMzExLCJfc2Vzc2lvbl9leHBpcnkiOjEyMDk2MDB9.loWqQvtAAhQn9tSpSxt9lgg-uBLs1vuRoAZbn2m1YAc";
-
         const submissionResponse = await fetch(submissionRequestURL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Session": leetcode_session,
-                "X-CSRF-Token": csrfToken,
             },
             body: JSON.stringify(requestBody),
         });
-        
+
         // Get the submission id and use it to get the submission result
         const submissionResult = await submissionResponse.json();
         const submissionId = submissionResult.submission_id;
@@ -421,7 +445,14 @@ export default function Room() {
         const requestURL = `${LEETCODE_API}/api/v1/leetcode/questions/submissions/${submissionId}`;
         const response = await fetch(requestURL);
         const result = await response.json();
-        console.log(result);
+
+        // TODO: Flesh this out a bit more in the future
+        const resultMessage: WebSocketMessage = {
+            event: "userSubmitResult",
+            message: result.status_msg,
+        }
+
+        websocket!.send(JSON.stringify(resultMessage));
     }
 
     // @ts-ignore for some reason monaco is not being recognized
