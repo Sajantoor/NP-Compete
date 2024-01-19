@@ -1,6 +1,6 @@
 import { RawData, WebSocket, WebSocketServer } from "ws";
 import { IncomingMessage } from "http";
-import { addRoomMember, removeRoomMember, verifyUserCanJoinRoom } from "../middlewares/rooms";
+import { addRoomMember, handleSubmit, removeRoomMember, verifyUserCanJoinRoom } from "../middlewares/rooms";
 import { Request } from "express";
 import { WebSocketMessage } from "../types/WebSocketMessage";
 import { getUserById } from "./users";
@@ -80,7 +80,6 @@ function sendMessageToRoomExcept(
     });
 }
 
-
 function sendJSON(webSocket: WebSocket, message: WebSocketMessage) {
     webSocket.send(JSON.stringify(message));
 }
@@ -122,9 +121,28 @@ async function sendUserMessage(webSocketServer: WebSocketServer, webSocket: WebS
             // Send the code message to everyone except the sender
             sendMessageToRoomExcept(webSocketServer, roomId, codeMessage, webSocket);
             return;
+        } else if (message.event === "userSubmit") {
+            const submitMessage: WebSocketMessage = {
+                event: "userSubmit",
+                username: username,
+                message: message.code,
+                language: message.language,
+            }
+
+            // TODO: Send that the user submitted a question as an EVENT message 
+            sendMessageToRoom(webSocketServer, roomId, submitMessage);
+            // TODO: Make API call to submit the question and await the result and send it back to the user
+            // const submissionResult = await handleSubmit(submitMessage, roomId);
+            // if (submissionResult != null) {
+            //     sendMessageToRoom(webSocketServer, roomId, submissionResult);
+            // } else {
+            //     sendError(webSocket, "Error submitting question");
+            // }
+
+            return;
         }
     } catch (error) {
-        // Do nothing
+        // TODO: Handle the error here 
     }
 
     const message: WebSocketMessage = {
@@ -137,11 +155,14 @@ async function sendUserMessage(webSocketServer: WebSocketServer, webSocket: WebS
 }
 
 async function getUsername(webSocket: WebSocket): Promise<string | null> {
+    // TODO: This operation is done a lot, so we can cache the username instead in redis cache 
     const user = await getUserById(webSocket.username);
+
     if (!user) {
         sendError(webSocket, "User not found");
         return null;
     }
+
     const username = user.username;
     return username;
 }

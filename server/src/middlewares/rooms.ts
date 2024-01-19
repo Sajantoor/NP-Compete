@@ -5,8 +5,10 @@ import { badRequestError, internalServerError } from "../utilities/errors";
 import { IncomingMessage } from "http";
 import { WebSocket } from "ws";
 import { RedisCache } from "../components/redis";
-import { Room } from "../types/Room";
+import { ErrorResponse, QuestionMetadata, QuestionResult, Room, SubmissionResult } from "../types/Room";
 import { sendError } from "../components/websocket";
+import { LEETCODE_API } from "../utilities/constants";
+import { WebSocketMessage } from "../types/WebSocketMessage";
 
 /**
  * 
@@ -29,15 +31,42 @@ export async function getRooms(res: Response) {
  */
 export async function getRoom(req: Request, res: Response) {
     const roomUuid = req.params.uuid;
-    const room = await RedisCache.getRoomByUuid(roomUuid);
-
+    const room = await getRoomByUuid(roomUuid);
     if (!room) {
         return badRequestError(res, "Room does not exist");
     }
 
+    res.json(room);
+}
+
+/**
+ * Gets a room by uuid from the redis cache if it exists, otherwise returns null. 
+ * Removes the password from the room before returning it.
+ * 
+ * @param uuid Room uuid to get from redis cache
+ * @returns 
+ */
+export async function getRoomByUuid(uuid: string): Promise<Room | null> {
+    const room = await RedisCache.getRoomByUuid(uuid);
+
+    if (!room) {
+        return null;
+    }
+
     // Don't send the password to the client
     delete room.password;
-    res.json(room);
+    return room;
+}
+
+async function getRoomQuestion(): Promise<QuestionResult | ErrorResponse> {
+    const response = await fetch(`${LEETCODE_API}/api/v1/leetcode/questions/random`);
+    const data = await response.json();
+
+    if (data.status === "error") {
+        return { message: data.message };
+    }
+
+    return data;
 }
 
 /**
@@ -47,6 +76,7 @@ export async function createRoom(req: Request, res: Response) {
     let room = req.body as Room;
 
     if (!validateInputtedRoom(room)) {
+        // TODO: send a better error message here
         return badRequestError(res, "Invalid room data");
     }
 
@@ -57,6 +87,23 @@ export async function createRoom(req: Request, res: Response) {
         const hashedPassword = await agron2.hash(room.password);
         room.password = hashedPassword;
     }
+
+    const questionResult = await getRoomQuestion();
+
+    // if questionData is of type ErrorResponse, return an error
+    if ((questionResult as ErrorResponse).message) {
+        const error = questionResult as ErrorResponse;
+        return badRequestError(res, error.message);
+    }
+
+    // Get the question ID and title from the question result
+    const questionData = questionResult as QuestionResult;
+    const selectedQuestion: QuestionMetadata = {
+        questionID: questionData.id,
+        questionTitle: questionData.titleSlug,
+    }
+
+    room = { ...room, questionData: selectedQuestion };
 
     const addToRedis = await RedisCache.addRoom(room);
 
@@ -205,4 +252,58 @@ function validateInputtedRoom(room: Room) {
     if (room.size > MAX_ROOM_SIZE) return false;
 
     return true;
+}
+
+async function getSubmissionResult(submissionId: string): Promise<SubmissionResult> {
+    const requestURL = `${LEETCODE_API}/api/v1/leetcode/questions/submissions/${submissionId}`;
+    const response = await fetch(requestURL);
+    const submissionResult = await response.json();
+    return submissionResult as SubmissionResult;
+}
+
+export async function handleSubmit(submitMessage: WebSocketMessage, roomId: string): Promise<WebSocketMessage | null> {
+    if (submitMessage.event !== "userSubmit") return null;
+
+    const username = submitMessage.username;
+    const code = submitMessage.code;
+    const language = submitMessage.language;
+
+    // get current question id from room 
+    const room = await getRoomByUuid(roomId);
+    if (!room == null) {
+        // TODO: Send some error here 
+        return null;
+    }
+
+    const questionId = room?.questionData?.questionID;
+    const questionName = room?.questionData?.questionTitle;
+
+    const requestURL = `${LEETCODE_API}/api/v1/leetcode/questions/${questionName}/submit`;
+    const requestBody = {
+        question_id: questionId,
+        lang: language,
+        typed_code: code,
+    }
+
+    const response = await fetch(requestURL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+    });
+
+    const result = await response.json();
+    const submissionId = result.submission_id;
+
+    const submissionResult = await getSubmissionResult(submissionId);
+    const submissionState = submissionResult.state;
+
+    const submissionMessage: WebSocketMessage = {
+        event: "userSubmitResult",
+        username: username,
+        message: "Submission result: " + submissionState,
+    };
+
+    return submissionMessage;
 }
