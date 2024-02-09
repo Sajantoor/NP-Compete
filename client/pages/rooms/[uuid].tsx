@@ -337,6 +337,7 @@ export default function Room() {
         // save the user's current code for that language
         setUserCode(userCode => (
             userCode.map(code => {
+                // If the language is the same as the current language, then update the code
                 if (code.languageValue === editorState.language) {
                     return {
                         ...code,
@@ -503,11 +504,15 @@ export default function Room() {
                             />
 
                             <Flex direction="row" justifyContent="flex-end" mt={2} padding={2} onChange={handleLanguageChange}>
-                                <Select size="sm" placeholder={editorState.language}>
-                                    <option value="javascript">JavaScript</option>
-                                    <option value="typescript">TypeScript</option>
-                                    <option value="java">Java</option>
-                                    <option value="cpp">C++</option>
+                                <Select size="sm" >
+                                    {
+                                        // Render the language options fetched from API 
+                                        userCode.map((code, index) => {
+                                            return (
+                                                <option key={index} value={code.languageValue}> {code.languageName} </option>
+                                            )
+                                        })
+                                    }
                                 </Select>
                                 <Button size="sm" ml={2} onClick={handleSubmitQuestion}> Submit </Button>
                             </Flex>
