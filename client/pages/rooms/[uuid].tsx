@@ -7,6 +7,7 @@ import NavBar from "../../components/navBar";
 import { LEETCODE_API, SERVER_URL, WEBSOCKET_URL } from "../../constants";
 import { WebSocketMessage } from "../../../server/src/types/WebSocketMessage";
 import { Room as RoomType, QuestionResult } from "../../../server/src/types/Room";
+import RenderedText from "../../components/renderedText";
 
 const DEFAULT_LANGUAGE = "javascript";
 const DEFAULT_CODE = "";
@@ -475,9 +476,7 @@ export default function Room() {
                     <Flex direction="row" minWidth="100%" height="100%">
                         <Flex bg="gray.800" p={5} direction="column" width="25%">
                             <Heading fontSize="xl" mb={5}> {currentQuestion.title} </Heading>
-                            <Text>
-                                {currentQuestion.description}
-                            </Text>
+                            <RenderedText text={currentQuestion.description} />
                         </Flex>
 
                         <Flex bg="gray.800" p={5} direction="column" width="70%" padding={0}>
