@@ -6,7 +6,6 @@ import {
 
 // TODO: Fix any and return type for NavBar
 export default function NavBar(props: any) {
-
     const navLinks = [
         {
             name: "Rooms",

@@ -1,24 +1,40 @@
-import { Button, Flex, Heading, Input, Select, Stack, Tab, TabList, Tabs, Text } from "@chakra-ui/react";
+"use client";
+
+import {
+    Button,
+    Flex,
+    Heading,
+    Input,
+    Select,
+    Stack,
+    Tab,
+    TabList,
+    Tabs,
+    Text,
+} from "@chakra-ui/react";
 import Editor from "@monaco-editor/react";
-import monaco from 'monaco-editor';
-import Router from "next/router"
+import monaco from "monaco-editor";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import NavBar from "../../components/navBar";
-import { LEETCODE_API, SERVER_URL, WEBSOCKET_URL } from "../../constants";
-import { WebSocketMessage } from "../../../server/src/types/WebSocketMessage";
-import { Room as RoomType, QuestionResult } from "../../../server/src/types/Room";
-import RenderedText from "../../components/renderedText";
+import NavBar from "../../../components/navBar";
+import { LEETCODE_API, SERVER_URL, WEBSOCKET_URL } from "../../../constants";
+import { WebSocketMessage } from "../../../../server/src/types/WebSocketMessage";
+import {
+    Room as RoomType,
+    QuestionResult,
+} from "../../../../server/src/types/Room";
+import RenderedText from "../../../components/renderedText";
 
 const DEFAULT_LANGUAGE = "javascript";
 const DEFAULT_CODE = "";
 
 interface CodeState {
-    code: string,
-    language: string,
+    code: string;
+    language: string;
 }
 
 interface UserData extends CodeState {
-    username: string,
+    username: string;
 }
 
 // This is stored codeData for each possible language
@@ -29,22 +45,26 @@ interface CodeData {
 }
 
 interface EditorState extends CodeState {
-    currentlyViewingUser: string,
+    currentlyViewingUser: string;
 }
 
 interface QuestionMetadata {
-    title: string,
-    title_slug: string,
-    description: string,
-    id: number,
+    title: string;
+    title_slug: string;
+    description: string;
+    id: number;
 }
 
 export default function Room() {
     const inputRef = useRef<HTMLInputElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+    const Router = useRouter();
+    const pathname = usePathname();
 
     const [roomName, setRoomName] = useState<string>("");
-    const [messages, setMessages] = useState<string[]>(["Welcome to the room!"]);
+    const [messages, setMessages] = useState<string[]>([
+        "Welcome to the room!",
+    ]);
     const [websocket, setWebSocket] = useState<WebSocket | null>(null);
     const [editorState, setEditorState] = useState<EditorState>({
         code: DEFAULT_CODE,
@@ -61,7 +81,9 @@ export default function Room() {
         language: DEFAULT_LANGUAGE,
     });
 
-    const [currentQuestion, setCurrentQuestion] = useState<QuestionMetadata>({} as QuestionMetadata);
+    const [currentQuestion, setCurrentQuestion] = useState<QuestionMetadata>(
+        {} as QuestionMetadata
+    );
     // list of code per language for the current user
     const [userCode, setUserCode] = useState<CodeData[]>([]);
 
@@ -70,40 +92,51 @@ export default function Room() {
      */
     useEffect(() => {
         async function fetchDataAndSetState() {
-            const { uuid } = Router.query;
+            const uuid = pathname?.split("/")?.pop();
+
             if (!uuid) {
                 return;
             }
 
-            const roomResponse = await fetch(`${SERVER_URL}/api/v1/rooms/${uuid}`, {
-                "method": "GET",
-                "credentials": "include",
-                "mode": "cors",
-            });
+            const roomResponse = await fetch(
+                `${SERVER_URL}/api/v1/rooms/${uuid}`,
+                {
+                    method: "GET",
+                    credentials: "include",
+                    mode: "cors",
+                }
+            );
 
             const userResponse = await fetch(`${SERVER_URL}/api/v1/profile`, {
-                "method": "GET",
-                "credentials": "include",
-                "mode": "cors",
+                method: "GET",
+                credentials: "include",
+                mode: "cors",
             });
 
             const userData = await userResponse.json();
             const roomData: RoomType = await roomResponse.json();
             const currentQuestion = roomData.questionData?.questionTitle;
+            console.log(roomData);
 
             if (!currentQuestion) {
                 // TODO: Handle this error
                 return;
             }
 
-            const currentQuestionResponse = await fetch(`${LEETCODE_API}/api/v1/leetcode/questions/${currentQuestion}`, {
-                "method": "GET",
-                "mode": "cors",
-            });
+            const currentQuestionResponse = await fetch(
+                `${LEETCODE_API}/api/v1/leetcode/questions/${currentQuestion}`,
+                {
+                    method: "GET",
+                    mode: "cors",
+                }
+            );
+
+            console.log(currentQuestionResponse);
 
             setRoomName(roomData.name);
 
-            const currentQuestionData: QuestionResult = await currentQuestionResponse.json();
+            const currentQuestionData: QuestionResult =
+                await currentQuestionResponse.json();
 
             setCurrentQuestion({
                 title: currentQuestionData.metaData.name,
@@ -112,7 +145,7 @@ export default function Room() {
                 id: roomData.questionData!.questionID,
             });
 
-            // Set user's code for each language by using currentQuestionData.codeDefinition 
+            // Set user's code for each language by using currentQuestionData.codeDefinition
             const userCode: CodeData[] = [];
             for (const language of currentQuestionData.codeDefinition) {
                 userCode.push({
@@ -126,7 +159,9 @@ export default function Room() {
             const username = userData.user.username;
             setCurrentUsername(username);
 
-            const currentCode = userCode.find(code => code.languageValue === DEFAULT_LANGUAGE)?.code || DEFAULT_CODE;
+            const currentCode =
+                userCode.find((code) => code.languageValue === DEFAULT_LANGUAGE)
+                    ?.code || DEFAULT_CODE;
 
             const currentUser: UserData = {
                 username: username,
@@ -134,63 +169,63 @@ export default function Room() {
                 language: DEFAULT_LANGUAGE,
             };
 
-            setUsers((users) => (
-                [currentUser, ...users]
-            ));
+            setUsers((users) => [currentUser, ...users]);
 
-            setEditorState(({
+            setEditorState({
                 code: currentCode,
                 language: DEFAULT_LANGUAGE,
                 currentlyViewingUser: username,
-            }));
+            });
         }
 
         fetchDataAndSetState();
-    }, [])
+    }, [pathname]);
 
     /**
      * Handle the websocket connection and websocket events
      */
     useEffect(() => {
-        const { uuid } = Router.query;
+        const uuid = pathname?.split("/")?.pop();
+
         if (!uuid) {
             return;
         }
 
         const websocket = new WebSocket(`${WEBSOCKET_URL}/${uuid}`);
 
-        websocket.onopen = () => { }
+        websocket.onopen = () => {};
         websocket.onclose = () => {
             // TOOD: Might be better to show an error in the UI instead
             Router.push("/rooms");
-        }
+        };
 
         setWebSocket(websocket);
         // On component unmount, close websocket
         return () => {
             websocket.close();
-        }
-
-    }, []);
+        };
+    }, [Router, pathname]);
 
     useEffect(() => {
         // Don't send the code if we are not viewing our own code and the code has not changed
-        if (editorState.currentlyViewingUser === currentUsername &&
-            (lastSentCode.code !== editorState.code || lastSentCode.language !== editorState.language)
+        if (
+            editorState.currentlyViewingUser === currentUsername &&
+            (lastSentCode.code !== editorState.code ||
+                lastSentCode.language !== editorState.language)
         ) {
             sendCurrentCode();
         }
 
-        // TODO: Remove this. 
+        // TODO: Remove this.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [editorState])
+    }, [editorState]);
 
     useEffect(() => {
         if (!websocket) return;
 
         websocket.onmessage = (event) => {
             handleMessage(event.data);
-        }
+        };
     });
 
     function sendCurrentCode() {
@@ -204,8 +239,8 @@ export default function Room() {
         const message = {
             event: "code",
             code: editorState.code,
-            language: editorState.language
-        }
+            language: editorState.language,
+        };
 
         setLastSentCode({
             code: editorState.code,
@@ -218,45 +253,59 @@ export default function Room() {
     function handleCodeEvent(message: WebSocketMessage) {
         // Check if the user is currently being viewed, if so update the editor
         if (message.username === editorState.currentlyViewingUser) {
-            setEditorState(prevState => ({
+            setEditorState((prevState) => ({
                 currentlyViewingUser: prevState.currentlyViewingUser,
                 code: message.code!,
                 language: message.language!,
             }));
         }
 
-
         // The user's room users may have not populated yet, everyone is sending their code to that user
-        // populate the user's room users with the corresponding code 
-        setUsers(users => (
+        // populate the user's room users with the corresponding code
+        setUsers((users) =>
             // TODO: This code fucking sucks.
             // If the user exists already, then we simply update the user
-            users.find(user => user.username === message.username) ?
-                users.map(user => {
-                    if (user.username === message.username) {
-                        return {
-                            ...user,
-                            code: message.code!,
-                            language: message.language!,
-                        }
-                    }
-                    return user;
-                })
-                // Else we add it to the user
-                : [...users, { username: message.username!, code: message.code!, language: message.language! }]
-        ));
+            users.find((user) => user.username === message.username)
+                ? users.map((user) => {
+                      if (user.username === message.username) {
+                          return {
+                              ...user,
+                              code: message.code!,
+                              language: message.language!,
+                          };
+                      }
+                      return user;
+                  })
+                : // Else we add it to the user
+                  [
+                      ...users,
+                      {
+                          username: message.username!,
+                          code: message.code!,
+                          language: message.language!,
+                      },
+                  ]
+        );
     }
 
-
     function handleUserJoinEvent(message: WebSocketMessage): string {
-        setUsers(users => ([...users, { username: message.username!, code: DEFAULT_CODE, language: DEFAULT_LANGUAGE }]));
+        setUsers((users) => [
+            ...users,
+            {
+                username: message.username!,
+                code: DEFAULT_CODE,
+                language: DEFAULT_LANGUAGE,
+            },
+        ]);
         // When a user joins, all other users should send their code to the new user
         sendCurrentCode();
         return `User ${message.username} joined`;
     }
 
     function handleUserLeaveEvent(message: WebSocketMessage) {
-        setUsers(users => (users.filter(user => user.username !== message.username)));
+        setUsers((users) =>
+            users.filter((user) => user.username !== message.username)
+        );
         return `User ${message.username} left`;
     }
 
@@ -269,9 +318,9 @@ export default function Room() {
     }
 
     /**
-    * 
-    * @param rawMessage 
-    */
+     *
+     * @param rawMessage
+     */
     function handleMessage(rawMessage: string) {
         const message: WebSocketMessage = JSON.parse(rawMessage);
 
@@ -304,7 +353,7 @@ export default function Room() {
         }
 
         if (newMessage) {
-            setMessages(messages => ([...messages, newMessage!]));
+            setMessages((messages) => [...messages, newMessage!]);
         }
     }
 
@@ -325,10 +374,13 @@ export default function Room() {
         websocket.send(message);
     }
 
-    function handleEditorChange(value: string | undefined, _event: monaco.editor.IModelContentChangedEvent) {
+    function handleEditorChange(
+        value: string | undefined,
+        _event: monaco.editor.IModelContentChangedEvent
+    ) {
         if (!value) return;
 
-        setEditorState(editorState => ({
+        setEditorState((editorState) => ({
             ...editorState,
             code: value,
         }));
@@ -336,27 +388,28 @@ export default function Room() {
 
     function handleLanguageChange(e: React.FormEvent<HTMLDivElement>) {
         // save the user's current code for that language
-        setUserCode(userCode => (
-            userCode.map(code => {
+        setUserCode((userCode) =>
+            userCode.map((code) => {
                 // If the language is the same as the current language, then update the code
                 if (code.languageValue === editorState.language) {
                     return {
                         ...code,
                         code: editorState.code,
-                    }
+                    };
                 }
                 return code;
-            }
-            )
-        ));
+            })
+        );
 
-        // TODO: Fix this ts error 
+        // TODO: Fix this ts error
         // @ts-ignore
         const language = e.target.value;
         // Get the code for the language or use the default code as a fallback
-        const code = userCode.find(code => code.languageValue === language)?.code || DEFAULT_CODE;
+        const code =
+            userCode.find((code) => code.languageValue === language)?.code ||
+            DEFAULT_CODE;
 
-        setEditorState(editorState => ({
+        setEditorState((editorState) => ({
             ...editorState,
             code: code,
             language: language,
@@ -364,7 +417,7 @@ export default function Room() {
     }
 
     function isViewingCurrentUser() {
-        return (editorState.currentlyViewingUser === currentUsername);
+        return editorState.currentlyViewingUser === currentUsername;
     }
 
     function isWebSocketReady() {
@@ -374,26 +427,25 @@ export default function Room() {
 
     function switchUser(userStr: string) {
         // Don't switch if the user is already being viewed
-        // TODO: Test with isViewingCurrentUser function instead 
+        // TODO: Test with isViewingCurrentUser function instead
         if (userStr === editorState.currentlyViewingUser) return;
 
-        const user = users.find(user => user.username === userStr);
+        const user = users.find((user) => user.username === userStr);
         if (!user) return;
 
-        // save the user's current code 
-        setUsers(users => (
-            users.map(user => {
+        // save the user's current code
+        setUsers((users) =>
+            users.map((user) => {
                 if (user.username === currentUsername) {
                     return {
                         ...user,
                         code: editorState.code,
                         language: editorState.language,
-                    }
+                    };
                 }
                 return user;
-            }
-            )
-        ));
+            })
+        );
 
         setEditorState({
             code: user.code,
@@ -402,12 +454,12 @@ export default function Room() {
         });
 
         editorRef.current?.updateOptions({
-            readOnly: user.username !== currentUsername
+            readOnly: user.username !== currentUsername,
         });
     }
 
     async function handleSubmitQuestion() {
-        // Don't submit anything if we viewing someone else's code 
+        // Don't submit anything if we viewing someone else's code
         if (!isViewingCurrentUser() || !isWebSocketReady()) {
             return;
         }
@@ -418,8 +470,8 @@ export default function Room() {
             question: {
                 code: editorState.code,
                 language: editorState.language,
-            }
-        }
+            },
+        };
 
         websocket!.send(JSON.stringify(userSubmitMessage));
 
@@ -429,7 +481,7 @@ export default function Room() {
             question_id: currentQuestion.id.toString(),
             lang: editorState.language,
             typed_code: editorState.code,
-        }
+        };
 
         const submissionResponse = await fetch(submissionRequestURL, {
             method: "POST",
@@ -443,7 +495,7 @@ export default function Room() {
         const submissionResult = await submissionResponse.json();
         const submissionId = submissionResult.submission_id;
 
-        // Get the submission result 
+        // Get the submission result
         const requestURL = `${LEETCODE_API}/api/v1/leetcode/questions/submissions/${submissionId}`;
         const response = await fetch(requestURL);
         const result = await response.json();
@@ -452,13 +504,16 @@ export default function Room() {
         const resultMessage: WebSocketMessage = {
             event: "userSubmitResult",
             message: result.status_msg,
-        }
+        };
 
         websocket!.send(JSON.stringify(resultMessage));
     }
 
     // @ts-ignore for some reason monaco is not being recognized
-    function handleEditorMount(editor: monaco.editor.IStandaloneCodeEditor, monaco: typeof monaco) {
+    function handleEditorMount(
+        editor: monaco.editor.IStandaloneCodeEditor,
+        monaco: typeof monaco
+    ) {
         editorRef.current = editor;
     }
 
@@ -469,26 +524,45 @@ export default function Room() {
             </NavBar>
 
             <Flex direction="column" padding={5}>
-                <Flex direction="row" mb={2}>
-                </Flex>
+                <Flex direction="row" mb={2}></Flex>
 
                 <Flex direction="row" mb={2}>
                     <Flex direction="row" minWidth="100%" height="100%">
-                        <Flex bg="gray.800" p={5} direction="column" width="25%">
-                            <Heading fontSize="xl" mb={5}> {currentQuestion.title} </Heading>
+                        <Flex
+                            bg="gray.800"
+                            p={5}
+                            direction="column"
+                            width="25%"
+                        >
+                            <Heading fontSize="xl" mb={5}>
+                                {" "}
+                                {currentQuestion.title}{" "}
+                            </Heading>
                             <RenderedText text={currentQuestion.description} />
                         </Flex>
 
-                        <Flex bg="gray.800" p={5} direction="column" width="70%" padding={0}>
-                            <Tabs variant='soft-rounded' mb={2}>
+                        <Flex
+                            bg="gray.800"
+                            p={5}
+                            direction="column"
+                            width="70%"
+                            padding={0}
+                        >
+                            <Tabs variant="soft-rounded" mb={2}>
                                 <TabList>
-                                    {
-                                        users.map((user, index) => {
-                                            return <Tab key={index} onClick={() => {
-                                                switchUser(user.username);
-                                            }}> {user.username} </Tab>
-                                        })
-                                    }
+                                    {users.map((user, index) => {
+                                        return (
+                                            <Tab
+                                                key={index}
+                                                onClick={() => {
+                                                    switchUser(user.username);
+                                                }}
+                                            >
+                                                {" "}
+                                                {user.username}{" "}
+                                            </Tab>
+                                        );
+                                    })}
                                 </TabList>
                             </Tabs>
                             <Editor
@@ -502,36 +576,77 @@ export default function Room() {
                                 onMount={handleEditorMount}
                             />
 
-                            <Flex direction="row" justifyContent="flex-end" mt={2} padding={2} onChange={handleLanguageChange}>
-                                <Select size="sm" >
+                            <Flex
+                                direction="row"
+                                justifyContent="flex-end"
+                                mt={2}
+                                padding={2}
+                                onChange={handleLanguageChange}
+                            >
+                                <Select size="sm">
                                     {
-                                        // Render the language options fetched from API 
+                                        // Render the language options fetched from API
                                         userCode.map((code, index) => {
                                             return (
-                                                <option key={index} value={code.languageValue}> {code.languageName} </option>
-                                            )
+                                                <option
+                                                    key={index}
+                                                    value={code.languageValue}
+                                                >
+                                                    {" "}
+                                                    {code.languageName}{" "}
+                                                </option>
+                                            );
                                         })
                                     }
                                 </Select>
-                                <Button size="sm" ml={2} onClick={handleSubmitQuestion}> Submit </Button>
+                                <Button
+                                    size="sm"
+                                    ml={2}
+                                    onClick={handleSubmitQuestion}
+                                >
+                                    {" "}
+                                    Submit{" "}
+                                </Button>
                             </Flex>
                         </Flex>
 
-                        <Flex bg="gray.800" p={5} direction="column" width="25%" alignSelf="flex-end">
-                            <Heading fontSize="2xl" mb={5}> Messages </Heading>
-                            <Flex direction="column" minHeight="70vh" justifyContent="flex-end" mb={2}>
+                        <Flex
+                            bg="gray.800"
+                            p={5}
+                            direction="column"
+                            width="25%"
+                            alignSelf="flex-end"
+                        >
+                            <Heading fontSize="2xl" mb={5}>
+                                {" "}
+                                Messages{" "}
+                            </Heading>
+                            <Flex
+                                direction="column"
+                                minHeight="70vh"
+                                justifyContent="flex-end"
+                                mb={2}
+                            >
                                 <Stack mb={5}>
                                     {messages.map((message, index) => {
                                         return (
                                             <Text key={index}> {message} </Text>
-                                        )
+                                        );
                                     })}
                                 </Stack>
 
                                 {/* move this flex to the bottom of the page */}
-                                <Flex direction="row" >
-                                    <Input mr={2} ref={inputRef} type="text" size="sm" />
-                                    <Button onClick={sendMessage} size="sm"> Send </Button>
+                                <Flex direction="row">
+                                    <Input
+                                        mr={2}
+                                        ref={inputRef}
+                                        type="text"
+                                        size="sm"
+                                    />
+                                    <Button onClick={sendMessage} size="sm">
+                                        {" "}
+                                        Send{" "}
+                                    </Button>
                                 </Flex>
                             </Flex>
                         </Flex>
@@ -539,5 +654,5 @@ export default function Room() {
                 </Flex>
             </Flex>
         </>
-    )
+    );
 }
