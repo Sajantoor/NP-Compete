@@ -60,6 +60,10 @@ export async function getRoomByUuid(uuid: string): Promise<Room | null> {
 
 async function getRoomQuestion(): Promise<QuestionResult | ErrorResponse> {
     const response = await fetch(`${LEETCODE_API}/api/v1/leetcode/questions/random`);
+    if (!response.ok) {
+        return { message: "Failed to get question" };
+    }
+
     const data = await response.json();
 
     if (data.status === "error") {
