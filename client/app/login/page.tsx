@@ -25,7 +25,7 @@ export default function Login() {
 
     return (
         <Flex height="100vh" alignItems="center" justifyContent="center">
-            <Flex direction="column" background="gray.800" p={20}>
+            <Flex direction="column" background="gray.100" p={20}>
                 <Heading textAlign="center" mb={6}>
                     {" "}
                     Login{" "}

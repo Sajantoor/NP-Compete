@@ -5,7 +5,6 @@ const config: ThemeConfig = {
     useSystemColorMode: false,
 };
 
-
 const theme = extendTheme({
     config,
     styles: {

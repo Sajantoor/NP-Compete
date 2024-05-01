@@ -1,8 +1,4 @@
-import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-} from '@chakra-ui/react'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink } from "@chakra-ui/react";
 
 // TODO: Fix any and return type for NavBar
 export default function NavBar(props: any) {
@@ -18,18 +14,27 @@ export default function NavBar(props: any) {
         {
             name: "Logout",
             href: "/logout",
-        }
-    ]
+        },
+    ];
 
     return (
-        <Breadcrumb padding={5} paddingBottom={0} separator='-' color="gray.400">
-            {navLinks.map((link) => (
-                <BreadcrumbItem key={link.name}>
-                    <BreadcrumbLink href={link.href}>{link.name}</BreadcrumbLink>
-                </BreadcrumbItem>
-            ))}
+        <>
+            <Breadcrumb
+                padding={5}
+                paddingBottom={0}
+                separator="-"
+                color="gray.400"
+            >
+                {navLinks.map((link) => (
+                    <BreadcrumbItem key={link.name}>
+                        <BreadcrumbLink href={link.href}>
+                            {link.name}
+                        </BreadcrumbLink>
+                    </BreadcrumbItem>
+                ))}
+            </Breadcrumb>
 
             {props.children}
-        </Breadcrumb>
+        </>
     );
 }

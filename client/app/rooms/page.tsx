@@ -28,7 +28,7 @@ export default async function Rooms() {
                         return (
                             <Flex
                                 key={room.uuid + index}
-                                bg="gray.700"
+                                bg="gray.200"
                                 padding={3}
                             >
                                 <Link key={room.uuid} href={roomLink}>

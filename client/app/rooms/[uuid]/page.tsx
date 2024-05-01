@@ -529,7 +529,7 @@ export default function Room() {
                 <Flex direction="row" mb={2}>
                     <Flex direction="row" minWidth="100%" height="100%">
                         <Flex
-                            bg="gray.800"
+                            bg="gray.200"
                             p={5}
                             direction="column"
                             width="25%"
@@ -542,7 +542,7 @@ export default function Room() {
                         </Flex>
 
                         <Flex
-                            bg="gray.800"
+                            bg="gray.200"
                             p={5}
                             direction="column"
                             width="70%"
@@ -611,7 +611,7 @@ export default function Room() {
                         </Flex>
 
                         <Flex
-                            bg="gray.800"
+                            bg="gray.200"
                             p={5}
                             direction="column"
                             width="25%"
