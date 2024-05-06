@@ -4,6 +4,7 @@ import { NextFunction, Request, Response } from "express";
 import { badRequestError, internalServerError, unauthorizedError } from "../utilities/errors";
 import { RedisCache } from "../components/redis";
 import { createUser, getCurrentUser, getUserByUsername } from "../components/users";
+import { COOKIE_NAME } from "../utilities/constants";
 
 /**
  * Redirects to Github OAuth, inits OAuth process with a code.
@@ -135,8 +136,11 @@ function checkIfAuth(req: Request): boolean {
     return req.session.username !== undefined;
 }
 
-export function logout(req: Request) {
+export function logout(req: Request, res: Response) {
     req.session.destroy((err) => {
         if (err) console.error(err);
     });
+
+    res.clearCookie(COOKIE_NAME);
+    res.json({ "message": "Logged out" });
 }

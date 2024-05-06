@@ -2,7 +2,7 @@ import { SERVER_URL } from "../../constants";
 import Link from "next/link";
 import { Room } from "../../../server/src/types/Room";
 import { Flex, Heading, Stack } from "@chakra-ui/react";
-import NavBar from "../../components/navBar";
+import NavBar from "../components/navBar";
 import RoomInput from "./roomInput";
 
 interface RoomInput {

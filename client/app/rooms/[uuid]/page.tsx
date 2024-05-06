@@ -16,14 +16,14 @@ import Editor from "@monaco-editor/react";
 import monaco from "monaco-editor";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import NavBar from "../../../components/navBar";
+import NavBar from "../../components/navBar";
 import { LEETCODE_API, SERVER_URL, WEBSOCKET_URL } from "../../../constants";
 import { WebSocketMessage } from "../../../../server/src/types/WebSocketMessage";
 import {
     Room as RoomType,
     QuestionResult,
 } from "../../../../server/src/types/Room";
-import RenderedText from "../../../components/renderedText";
+import RenderedText from "../../components/renderedText";
 
 const DEFAULT_LANGUAGE = "javascript";
 const DEFAULT_CODE = "";
@@ -519,9 +519,9 @@ export default function Room() {
 
     return (
         <>
-            <NavBar>
+            {/* <NavBar>
                 <Heading fontSize="xl"> {roomName} </Heading>
-            </NavBar>
+            </NavBar> */}
 
             <Flex direction="column" padding={5}>
                 <Flex direction="row" mb={2}></Flex>

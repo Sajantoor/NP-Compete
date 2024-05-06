@@ -64,7 +64,7 @@ app.use(requireAuth);
 app.get(`${API_PREFIX}/profile`, (req, res) => getProfile(req, res));
 app.post(`${API_PREFIX}/rooms`, (req, res) => createRoom(req, res));
 app.patch(`${API_PREFIX}/rooms/:uuid`, (req, res) => patchRoom(req, res));
-app.post(`${API_PREFIX}/logout`, (req) => logout(req));
+app.post(`${API_PREFIX}/logout`, (req, res) => logout(req, res));
 
 server.listen(port, () => {
     console.log(`Listening to port ${port}`);
