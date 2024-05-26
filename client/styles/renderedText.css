@@ -1,0 +1,16 @@
+.renderedText  * {
+    margin-left: 5px;
+}
+
+/* images need to maintain their aspect ratio */
+.renderedText img {
+  max-width: 100% !important;
+  height: auto !important;
+  padding: 5px; 
+}
+
+/* pre needs to be wrapped */
+.renderedText pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}

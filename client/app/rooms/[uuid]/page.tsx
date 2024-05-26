@@ -11,7 +11,9 @@ import {
     TabList,
     Tabs,
     Text,
+    Box,
 } from "@chakra-ui/react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Editor from "@monaco-editor/react";
 import monaco from "monaco-editor";
 import { usePathname, useRouter } from "next/navigation";
@@ -86,6 +88,7 @@ export default function Room() {
     );
     // list of code per language for the current user
     const [userCode, setUserCode] = useState<CodeData[]>([]);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
     /**
      * Get the room info from the server and update the user state with the members
@@ -227,6 +230,10 @@ export default function Room() {
             handleMessage(event.data);
         };
     });
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+    }, [messages]);
 
     function sendCurrentCode() {
         if (!websocket) {
@@ -523,31 +530,20 @@ export default function Room() {
                 <Heading fontSize="xl"> {roomName} </Heading>
             </NavBar> */}
 
-            <Flex direction="column" padding={5}>
-                <Flex direction="row" mb={2}></Flex>
-
-                <Flex direction="row" mb={2}>
-                    <Flex direction="row" minWidth="100%" height="100%">
-                        <Flex
-                            bg="gray.200"
-                            p={5}
-                            direction="column"
-                            width="25%"
-                        >
+            <Box height="90vh" overflow="auto">
+                <PanelGroup direction="horizontal">
+                    <Panel maxSize={50} defaultSize={25} minSize={0}>
+                        <Box p={5} height="100%" overflow="auto">
                             <Heading fontSize="xl" mb={5}>
                                 {" "}
                                 {currentQuestion.title}{" "}
                             </Heading>
                             <RenderedText text={currentQuestion.description} />
-                        </Flex>
-
-                        <Flex
-                            bg="gray.200"
-                            p={5}
-                            direction="column"
-                            width="70%"
-                            padding={0}
-                        >
+                        </Box>
+                    </Panel>
+                    <PanelResizeHandle />
+                    <Panel minSize={20}>
+                        <Box p={1} height="100%">
                             <Tabs variant="soft-rounded" mb={2}>
                                 <TabList>
                                     {users.map((user, index) => {
@@ -568,7 +564,7 @@ export default function Room() {
                             <Editor
                                 theme="vs-dark"
                                 width="100%"
-                                height="83.5vh"
+                                height="85%"
                                 language={editorState.language}
                                 defaultValue=""
                                 onChange={handleEditorChange}
@@ -608,51 +604,39 @@ export default function Room() {
                                     Submit{" "}
                                 </Button>
                             </Flex>
-                        </Flex>
-
-                        <Flex
-                            bg="gray.200"
-                            p={5}
-                            direction="column"
-                            width="25%"
-                            alignSelf="flex-end"
-                        >
-                            <Heading fontSize="2xl" mb={5}>
-                                {" "}
-                                Messages{" "}
-                            </Heading>
-                            <Flex
-                                direction="column"
-                                minHeight="70vh"
-                                justifyContent="flex-end"
-                                mb={2}
-                            >
-                                <Stack mb={5}>
+                        </Box>
+                    </Panel>
+                    <PanelResizeHandle />
+                    <Panel maxSize={50} defaultSize={15} minSize={0}>
+                        <Box p={5} height="100%">
+                            <Heading fontSize="2xl"> Messages </Heading>
+                            <Box mb={2} height="100%">
+                                <Stack
+                                    mb={5}
+                                    overflow="auto"
+                                    maxHeight="90%"
+                                    minHeight="90%"
+                                >
                                     {messages.map((message, index) => {
                                         return (
                                             <Text key={index}> {message} </Text>
                                         );
                                     })}
+                                    <div ref={messagesEndRef} />
                                 </Stack>
 
-                                {/* move this flex to the bottom of the page */}
-                                <Flex direction="row">
-                                    <Input
-                                        mr={2}
-                                        ref={inputRef}
-                                        type="text"
-                                        size="sm"
-                                    />
+                                <Flex>
+                                    <Input mr={2} ref={inputRef} type="text" />
                                     <Button onClick={sendMessage} size="sm">
                                         {" "}
                                         Send{" "}
                                     </Button>
                                 </Flex>
-                            </Flex>
-                        </Flex>
-                    </Flex>
-                </Flex>
-            </Flex>
+                            </Box>
+                        </Box>
+                    </Panel>
+                </PanelGroup>
+            </Box>
         </>
     );
 }
